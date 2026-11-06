@@ -28,7 +28,7 @@ const LAYERS = [
 export const PUPPET_GESTURES = {
   // elbowR/elbowL：小臂绕肘弯起的角度（没有 arm_r_wave.png 时靠它挥手）
   wave: { duration: 2.6, armR: 0.42, elbowR: 2.25, elbowROsc: [0.32, 1.8], spriteR: 'wave', tilt: 0.05, turn: 0.25, eyes: 'smile' },
-  nod: { duration: 1.3, nod: 1 },
+  nod: { duration: 1.8, nod: 1 },
   shake: { duration: 1.4, shake: 1 },
   think: { duration: 2.8, tilt: 0.09, turn: 0.45, lookUp: 1, armR: -0.05 },
   point: { duration: 2.2, armR: 0.65, turn: 0.4, tilt: 0.03 },
@@ -219,7 +219,7 @@ export class Puppet2D {
     let turn = 0.18 * Math.sin(t * 0.31) + (g.turn ?? 0) * w;
     if (g.shake) turn += Math.sin(gt * 11) * 0.7 * w;
     let nod = (g.lookUp ? -0.5 * w : 0);
-    if (g.nod) nod += Math.max(0, Math.sin(gt * 9)) * w;
+    if (g.nod) nod += Math.max(0, Math.sin(gt * 7)) * w; // 点两下
     if (g.bow) nod += 1.6 * w;
     if (g.down || this.emotion === 'sad') nod += 0.6 * (g.down ? w : 1);
     // 手臂外展
@@ -255,7 +255,7 @@ export class Puppet2D {
     const hem = p.hem;
     const faceR = Math.max(H * 0.045, Math.abs(neck[1] - eyes[1]) * 1.3);
     const turnPx = H * 0.011;
-    const nodPx = H * 0.007;
+    const nodPx = H * 0.014;
     const torsoLen = Math.max(1, waist[1] - neck[1]);
 
     // 换图：眼、嘴、挥手
@@ -296,7 +296,9 @@ export class Puppet2D {
           let dep = def.depth;
           if (def.face) { const r2 = ((x - eyes[0]) ** 2 + (y - eyes[1]) ** 2) / (faceR * faceR); dep *= Math.exp(-r2); }
           x += turn * dep * turnPx;
-          y += nod * nodPx * (0.5 + dep * 0.6);
+          // 点头：五官比轮廓下移更多（低头的透视），整个头朝脖子方向压扁一点
+          y += nod * nodPx * (0.4 + dep * 0.9);
+          y = neck[1] + (y - neck[1]) * (1 - 0.045 * nod);
           [x, y] = rot(x, y, neck[0], neck[1], tilt);
           y -= breathPx;
         } else if (def.group === 'armL' || def.group === 'armR') {
