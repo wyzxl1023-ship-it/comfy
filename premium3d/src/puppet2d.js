@@ -468,6 +468,9 @@ export class Puppet2D {
     if (T) { T.mat.opacity = tears; T.mesh.visible = tears > 0.01; }
     const armSprite = g.spriteR && w > 0.4 && this.byId.armR?.tex[g.spriteR] ? g.spriteR : 'default';
     this.setSprite('armR', armSprite);
+    // 手到脸的手臂图要盖在前发上面，否则长刘海会把手挡住
+    const AR = this.byId.armR;
+    if (AR) AR.mesh.renderOrder = 10 + (armSprite === 'face' ? LAYERS.length + 1 : AR.order ?? 0);
 
     // ---------- 逐顶点变形 ----------
     const rot = (x, y, cx, cy, a) => {
