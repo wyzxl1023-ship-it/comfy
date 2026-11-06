@@ -16,7 +16,7 @@ const ASSET_CANDIDATES = [
   '/Volumes/固态T800/小柚资产',
 ];
 const DEFAULT_ASSETS = ASSET_CANDIDATES.find((d) => fs.existsSync(path.join(d, 'character'))) ?? ASSET_CANDIDATES[0];
-const WEB_PORT = 5180;
+const WEB_PORT = 5190; // 和开发预览（5180）错开
 const BRIDGE_PORT = 8765;
 
 function loadConfig() {
