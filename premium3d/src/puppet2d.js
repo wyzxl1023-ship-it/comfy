@@ -260,6 +260,7 @@ export class Puppet2D {
       if (def.id === 'eyes' && !tex.wink && tex.open && tex.closed) tex.wink = winkTexture(tex.open.image, tex.closed.image, p.eyes?.[0] ?? W / 2);
       if (!Object.keys(tex).length || !box) continue;
       const layer = this.buildLayer(def, tex, box, i);
+      layer.order = i;
       this.layers.push(layer);
       this.byId[def.id] = layer;
     }
@@ -269,6 +270,8 @@ export class Puppet2D {
     sh.renderOrder = 5;
     this.root.add(sh);
     this.shadow = sh;
+    this.hairStyle = 'straight';
+    this.hairTipY = null;
     this.update(0);
     return this;
   }
@@ -318,6 +321,55 @@ export class Puppet2D {
 
   // 和 3D Avatar 对齐的接口
   bone() { return null; }
+  // 换发型：读 hair/<名字>/hair_back.png、hair_front.png（和 hair.json 里的 hairTipY），
+  // 换掉当前的前后两层头发；'straight' 或空 = 用 character/ 顶层的默认头发。文件夹不存在就保持不变。
+  setHair(style) {
+    // 排队执行，连着换几次也不会互相打架
+    this.hairQueue = (this.hairQueue ?? Promise.resolve()).then(() => this.loadHair(style)).catch(() => false);
+    return this.hairQueue;
+  }
+
+  async loadHair(style) {
+    style = style || 'straight';
+    if (!this.p || style === this.hairStyle) return false;
+    const dir = style === 'straight' ? this.base : `${this.base}/hair/${style}`;
+    let tip = null;
+    if (style !== 'straight') {
+      try { const r = await fetch(`${dir}/hair.json`, { cache: 'no-store' }); if (r.ok) tip = (await r.json()).hairTipY ?? null; } catch { /* 没写就用默认 */ }
+    }
+    const built = [];
+    for (const id of ['hairBack', 'hairFront']) {
+      const order = LAYERS.findIndex((d) => d.id === id);
+      const def = LAYERS[order];
+      const img = await loadImage(`${dir}/${def.sprites.default}`);
+      if (!img) return false;
+      const t = new THREE.Texture(img);
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+      const box = alphaBox(img);
+      if (!box) return false;
+      built.push({ id, order, def, tex: { default: t }, box });
+    }
+    for (const b of built) {
+      const old = this.byId[b.id];
+      const layer = this.buildLayer(b.def, b.tex, b.box, b.order);
+      layer.order = b.order;
+      if (old) {
+        this.root.remove(old.mesh);
+        old.mesh.geometry.dispose();
+        old.tex.default?.dispose?.();
+        this.layers[this.layers.indexOf(old)] = layer;
+      } else {
+        this.layers.push(layer);
+        this.layers.sort((a, c) => a.order - c.order);
+      }
+      this.byId[b.id] = layer;
+    }
+    this.hairTipY = tip;
+    this.hairStyle = style;
+    this.update(0);
+    return true;
+  }
+
   play(name) { if (PUPPET_GESTURES[name]) this.active = { name, t: 0 }; }
   setEmotion(e) { this.emotion = e; }
   // 取景用：眼睛高度（米）
@@ -384,7 +436,7 @@ export class Puppet2D {
     const feet = this.origin;
     const shL = p.shoulderL ?? [neck[0] - H * 0.06, neck[1] + H * 0.03];
     const shR = p.shoulderR ?? [neck[0] + H * 0.06, neck[1] + H * 0.03];
-    const hairTip = p.hairTipY ?? waist[1];
+    const hairTip = this.hairTipY ?? p.hairTipY ?? waist[1];
     const elR = p.elbowR ?? [shR[0] + H * 0.02, (shR[1] + waist[1]) / 2 + H * 0.02];
     const elL = p.elbowL ?? [2 * neck[0] - elR[0], elR[1]]; // 没量左肘就按脖子中线镜像
     const elbowBand = H * 0.025;

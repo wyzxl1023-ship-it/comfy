@@ -61,6 +61,7 @@ curl -X POST http://<mac-ip>:8765/event -H 'content-type: application/json' -d '
 | `weather` | `temp`，`condition`: `sunny` / `cloudy` / `rain` / `snow`，可选 `night` | 推送天气，背景和穿搭随之变化 |
 | `gesture` / `emotion` | `name` / `emotion` | 直接指定动作 / 表情 |
 | `outfit` | 可选 `announce` | 重新搭配；`announce: true` 时小柚会说出今天穿了什么 |
+| `hair` | `name`：straight / ponytail / bun / halfUp / messyBun | 换发型（2D 小柚读 character/hair/名字/ 下的两层头发；平时换衣服会按场合自动搭配） |
 | `heard` | `text` | 用户对小柚说的话。页面不处理，只和 `say` 一起按天记进聊天记录（Mac 应用：文稿/AI语音伴侣项目/小柚聊天记录/YYYY-MM-DD.jsonl；命令行：设 `LOG_DIR`） |
 
 也可以用 WebSocket 直接连 `ws://<mac-ip>:8765` 发同样的 JSON。

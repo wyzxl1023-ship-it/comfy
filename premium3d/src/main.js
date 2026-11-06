@@ -6,7 +6,7 @@ import { LipSync } from './lipsync.js';
 import { planUtterance } from './intent.js';
 import { GESTURE_LABELS } from './gestures.js';
 import { Dresser, dominantColor, compressImage } from './dress.js';
-import { chooseOutfit, SLOTS, newItemFromUpload } from './wardrobe.js';
+import { chooseOutfit, SLOTS, newItemFromUpload, hairFor } from './wardrobe.js';
 import { loadItems, saveItem, deleteItem, recentWorn, recordWorn, loadBackgrounds, saveBackground, deleteBackground } from './store.js';
 import { Backdrop, candidates } from './backdrop.js';
 import { fetchWeather } from './weather.js';
@@ -126,6 +126,7 @@ async function dressAuto({ announce = false } = {}) {
   const outfit = chooseOutfit(state.items, state.weather, state.scene, { recent: recentWorn() });
   state.outfit = outfit;
   if (!avatar.isPuppet) await dresser.apply(outfit); // 2D 版换衣（局部重绘出的衣服图层）后续接入
+  else await avatar.setHair?.(hairFor(outfit, state.scene));
   recordWorn(Object.values(outfit.items).map((i) => i.id));
   renderWardrobe();
   if (announce) say(outfit.say);
@@ -235,6 +236,7 @@ function handleMessage(m) {
     case 'gesture': return avatar.play(m.name);
     case 'emotion': return avatar.setEmotion(m.emotion);
     case 'outfit': return dressAuto({ announce: !!m.announce });
+    case 'hair': return avatar.setHair?.(m.name);
     default: return null;
   }
 }

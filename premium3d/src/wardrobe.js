@@ -159,3 +159,15 @@ export function newItemFromUpload({ name, slot, color, image, warmth = 1, formal
     slot, color, image, warmth, formal, builtin: false,
   };
 }
+
+// 发型跟着穿搭和场合走：单品上写了 hair 就听单品的（比如运动服 → 高马尾），
+// 否则按场合：在家/卧室 → 随手丸子头，上班 → 低盘发，其它 → 长直发。
+export const HAIR_STYLES = { straight: '长直发', ponytail: '高马尾', bun: '低盘发', halfUp: '半扎发', messyBun: '丸子头' };
+const HAIR_BY_SCENE = { home: 'messyBun', bedroom: 'messyBun', office: 'bun' };
+export function hairFor(outfit, scene) {
+  for (const slot of ['outer', 'top', 'dress', 'bottom', 'shoes', 'hat']) {
+    const h = outfit?.items?.[slot]?.hair;
+    if (h && HAIR_STYLES[h]) return h;
+  }
+  return HAIR_BY_SCENE[scene] ?? 'straight';
+}

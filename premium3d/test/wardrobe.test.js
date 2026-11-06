@@ -76,3 +76,12 @@ test('天气 → 需要的配饰', () => {
 test('卧室算在家：不加外套雨伞', () => {
   assert.deepEqual(optionalSlotsFor({ temp: 5, condition: 'rain' }, 'bedroom'), []);
 });
+
+test('发型跟着单品和场合走', async () => {
+  const { hairFor } = await import('../src/wardrobe.js');
+  assert.equal(hairFor({ items: { top: { id: 'run', hair: 'ponytail' } } }, 'office'), 'ponytail');
+  assert.equal(hairFor({ items: {} }, 'office'), 'bun');
+  assert.equal(hairFor({ items: {} }, 'bedroom'), 'messyBun');
+  assert.equal(hairFor({ items: {} }, 'busStop'), 'straight');
+  assert.equal(hairFor({ items: { top: { hair: 'nope' } } }, 'busStop'), 'straight');
+});
