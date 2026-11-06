@@ -17,6 +17,19 @@ npm test             # 规则 / 衣橱 / 协议的单元测试
 全屏展示：地址后面加 `?kiosk`（隐藏面板，按 `H` 显示/隐藏），浏览器全屏即可。
 其它调试参数：`?scene=office&weather=rain&temp=12&night&mute&model=xxx.vrm&say=你好`。
 
+## Mac 应用
+
+```bash
+npm run app          # 开发时直接以应用方式运行
+npm run app:build    # 打包 release/mac-arm64/小柚.app（在 Mac 上打包会自动本机签名）
+```
+
+- 打开就全屏铺在竖屏显示器上（有竖屏优先用竖屏），菜单「小柚」里可切换全屏展示、开机自动启动、换屏幕、选资产文件夹。
+- 内置 ESP32 桥接（8765 端口），不用另开终端。
+- 资产文件夹默认 `/Volumes/固态t800/小柚资产/`：`backgrounds/` 放背景图（丢进去就生效，不用写清单），`character/`、`wardrobe/` 留给 2D 人物部件和衣服。
+- 在 Linux 上打包可得到未签名的 .app，拷到 Mac 后要执行 `xattr -cr 小柚.app && codesign --force --deep -s - 小柚.app`。
+- 以后换成能渲染的板子（Linux + GPU），可以直接打 Linux arm64 版或用 Chromium 全屏打开同一个页面。
+
 ## 现在能做什么
 
 | 能力 | 做法 | 位置 |

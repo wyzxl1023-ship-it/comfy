@@ -3,20 +3,47 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "小柚高端版 3D 形象原型：VRM 角色 + 话语→动作 + 场景切换 + 音量口型",
+  "description": "小柚高端版：3D/2D 形象 + 话语→动作 + 场景/天气 + 衣橱 + ESP32 桥接（网页 / Mac 应用）",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
     "bridge": "node bridge/server.mjs",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "app": "vite build && electron .",
+    "app:build": "vite build && electron-builder --mac dir --arm64"
   },
   "dependencies": {
-    "@pixiv/three-vrm": "^3.5.5",
-    "three": "^0.180.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "vite": "^7.1.0"
+    "vite": "^7.1.0",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.0.0",
+    "three": "^0.180.0",
+    "@pixiv/three-vrm": "^3.5.5"
+  },
+  "main": "electron/main.mjs",
+  "productName": "小柚",
+  "build": {
+    "appId": "com.xiaoyou.premium",
+    "productName": "小柚",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "bridge/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.lifestyle",
+      "target": [
+        "dir"
+      ],
+      "identity": null
+    },
+    "asar": true
   }
 }
