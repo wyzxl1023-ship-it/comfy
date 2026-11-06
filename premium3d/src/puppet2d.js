@@ -253,6 +253,7 @@ export class Puppet2D {
     const elL = p.elbowL ?? [2 * neck[0] - elR[0], elR[1]]; // 没量左肘就按脖子中线镜像
     const elbowBand = H * 0.025;
     const hem = p.hem;
+    const top = p.headTop ?? H * 0.05;
     const faceR = Math.max(H * 0.045, Math.abs(neck[1] - eyes[1]) * 1.3);
     const turnPx = H * 0.011;
     const nodPx = H * 0.014;
@@ -296,9 +297,15 @@ export class Puppet2D {
           let dep = def.depth;
           if (def.face) { const r2 = ((x - eyes[0]) ** 2 + (y - eyes[1]) ** 2) / (faceR * faceR); dep *= Math.exp(-r2); }
           x += turn * dep * turnPx;
-          // 点头：五官比轮廓下移更多（低头的透视），整个头朝脖子方向压扁一点
-          y += nod * nodPx * (0.4 + dep * 0.9);
-          y = neck[1] + (y - neck[1]) * (1 - 0.045 * nod);
+          // 点头：头发和脸轮廓一起下移（不露出头顶补色），五官多移一点藏进刘海；
+          // 脖子附近几乎不动，压扁只作用在脖子以上
+          if (nod) {
+            const above = y < neck[1];
+            const nearNeck = above ? smooth(((neck[1] - y) / Math.max(1, neck[1] - top)) * 4) : 1;
+            const feature = def.id === 'eyes' || def.id === 'brows' || def.id === 'mouth';
+            y += nod * nodPx * (0.45 + (feature ? 0.5 : 0)) * nearNeck;
+            if (above) y = neck[1] + (y - neck[1]) * (1 - 0.045 * nod);
+          }
           [x, y] = rot(x, y, neck[0], neck[1], tilt);
           y -= breathPx;
         } else if (def.group === 'armL' || def.group === 'armR') {

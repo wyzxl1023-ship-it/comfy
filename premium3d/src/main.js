@@ -51,8 +51,10 @@ function layout() {
   painted?.setSize(w, h);
   camera.aspect = w / h;
   const portrait = Math.min(Math.max((1.2 - camera.aspect) / 0.7, 0), 1); // 1=竖屏 0=横屏
-  const top = frame.headY + 0.32;
-  const bottom = THREE.MathUtils.lerp(frame.headY * 0.25, frame.footY + 0.12, portrait);
+  const top = frame.headY + (avatar.isPuppet ? 0.5 : 0.32); // 2D 挥手/欢呼时手会举过头顶
+  // 2D 小柚：竖屏取到膝盖左右，人物更大，点头眨眼看得清；3D 版仍是全身
+  const fullBottom = avatar.isPuppet ? frame.headY * 0.3 : frame.footY + 0.12;
+  const bottom = THREE.MathUtils.lerp(frame.headY * 0.25, fullBottom, portrait);
   const span = top - bottom;
   const centerY = (top + bottom) / 2;
   camera.fov = 30;
@@ -60,7 +62,7 @@ function layout() {
   let dist = (span / 2 / Math.tan(vHalf)) * 1.08;
   // 窄屏还要保证张开手臂不出画
   const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
-  dist = Math.max(dist, 0.75 / Math.tan(hHalf));
+  dist = Math.max(dist, (avatar.isPuppet ? 0.42 : 0.75) / Math.tan(hHalf));
   camera.position.set(0, centerY + 0.05, dist);
   camera.lookAt(0, centerY, 0);
   // 宽屏且面板打开时，把人物放到面板左边剩余区域的中间
