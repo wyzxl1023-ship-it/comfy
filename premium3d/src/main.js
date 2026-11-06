@@ -6,7 +6,8 @@ import { planUtterance } from './intent.js';
 import { GESTURE_LABELS } from './gestures.js';
 import { Dresser, dominantColor, compressImage } from './dress.js';
 import { chooseOutfit, SLOTS, newItemFromUpload } from './wardrobe.js';
-import { loadItems, saveItem, deleteItem, recentWorn, recordWorn } from './store.js';
+import { loadItems, saveItem, deleteItem, recentWorn, recordWorn, loadBackgrounds, saveBackground, deleteBackground } from './store.js';
+import { Backdrop, candidates } from './backdrop.js';
 import { fetchWeather } from './weather.js';
 import { connectBridge } from './bridge-client.js';
 import { PaintedRenderer, paintCharacter } from './style.js';
@@ -35,6 +36,7 @@ const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
 const scenes = new SceneManager(scene, { painted: STYLE === 'painted' });
 const painted = STYLE === 'painted' ? new PaintedRenderer(renderer, scene, camera) : null;
 const avatar = new Avatar(scene);
+const backdrop = new Backdrop(scene, camera);
 const dresser = new Dresser(avatar);
 const lips = new LipSync();
 
@@ -64,6 +66,17 @@ function layout() {
   if (panel && camera.aspect > 1.2 && panel < w * 0.5) camera.setViewOffset(w, h, panel / 2, 0, w, h);
   else camera.clearViewOffset();
   camera.updateProjectionMatrix();
+  backdrop.fit();
+}
+
+// 有背景图就用 2.5D（画 + 人物），没有就用程序化 3D 场景
+async function refreshBackdrop() {
+  const used = await backdrop.show(state.scene, state.weather);
+  if (scenes.current) scenes.current.group.visible = !used;
+  scenes.sky.visible = !used;
+  if (scenes.particles) scenes.particles.visible = !used || scenes.current?.outdoor;
+  const label = $('#bgStatus');
+  if (label) label.textContent = used ? '当前：背景图' : '当前：3D 场景（没有背景图）';
 }
 window.addEventListener('resize', layout);
 
@@ -87,6 +100,7 @@ function switchScene(key) {
     await wait(450);
     scenes.set(key);
     state.scene = key;
+    await refreshBackdrop();
     await dressAuto();
     fader.classList.remove('on');
     syncUI();
@@ -97,6 +111,7 @@ function switchScene(key) {
 function setWeather(w) {
   state.weather = { ...state.weather, ...w };
   scenes.setWeather(state.weather);
+  refreshBackdrop();
   dressAuto();
   syncUI();
 }
@@ -132,6 +147,7 @@ async function say(text, msg = {}) {
   if (plan.weather && plan.weather !== state.weather.condition) {
     state.weather = { ...state.weather, condition: plan.weather };
     scenes.setWeather(state.weather);
+    refreshBackdrop();
   }
   if (plan.scene && plan.scene !== scenes.key) await switchScene(plan.scene);
   else if (plan.weather) await dressAuto();
@@ -263,6 +279,20 @@ function buildUI() {
     if (f) await loadModel(URL.createObjectURL(f));
   };
   $('#upload').onsubmit = uploadItem;
+  $('#bgFile').onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const image = await compressImage(f, 2560);
+    const key = $('#bgScope').value === 'weather' ? `${state.scene}-${state.weather.condition}` : state.scene;
+    await saveBackground(key, image);
+    backdrop.uploads.set(key, image);
+    e.target.value = '';
+    refreshBackdrop();
+  };
+  $('#bgClear').onclick = async () => {
+    for (const key of candidates(state.scene, state.weather)) { backdrop.uploads.delete(key); await deleteBackground(key); }
+    refreshBackdrop();
+  };
   $('#togglePanel').onclick = () => { document.body.classList.toggle('panel-hidden'); layout(); };
   window.addEventListener('keydown', (e) => { if (e.key === 'h' && e.target === document.body) { document.body.classList.toggle('panel-hidden'); layout(); } });
   if (params.has('kiosk')) document.body.classList.add('panel-hidden');
@@ -393,6 +423,9 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   layout();
   syncUI();
   state.items = await loadItems();
+  await backdrop.loadManifest('./backgrounds/manifest.json');
+  try { for (const b of await loadBackgrounds()) backdrop.uploads.set(b.key, b.image); } catch { /* 浏览器不支持就跳过 */ }
+  await refreshBackdrop();
   tick();
   await loadModel(params.get('model') || './models/sample.vrm');
   connectBridge(params.get('bridge') || `ws://${location.hostname || 'localhost'}:8765`, handleMessage, (ok) => {
