@@ -171,3 +171,42 @@ export function hairFor(outfit, scene) {
   }
   return HAIR_BY_SCENE[scene] ?? 'straight';
 }
+
+// ---------- 2D 小柚的整套穿搭（look） ----------
+// 2D 人物没法一件一件叠穿，衣服是整套在原图上局部重绘、再切成 body/arm 图层的，
+// 清单在 character/outfits/outfits.json：
+//   [{ id, name, warmth: 0..3, formal: 0..2, rain?: bool, beach?: bool, hair?: 发型名 }]
+// 按天气（冷暖、下雨）和场合（正式度、海边）挑一套，最近穿过的往后排。
+export const BEACH_SCENES = new Set(['beach', 'pool', 'sunMoonLake']);
+export function sceneFormal(scene) {
+  return SCENE_FORMAL[scene] ?? (AT_HOME.has(scene) ? 0 : 1);
+}
+
+export function scoreLook(look, weather, scene, { recent = [] } = {}) {
+  if (look.beach && !BEACH_SCENES.has(scene)) return -Infinity; // 泳装只在海边/泳池
+  const target = targetWarmth(weather.temp ?? 22);
+  let s = 10;
+  s -= 2.5 * Math.abs((look.warmth ?? 1) - target);
+  s -= 1.5 * Math.abs((look.formal ?? 1) - sceneFormal(scene));
+  const wet = weather.condition === 'rain' && !AT_HOME.has(scene);
+  if (wet && look.rain) s += 2;
+  if (!wet && look.rain) s -= 1;
+  if (look.beach) s += 3; // 到了海边就穿泳装
+  const i = recent.indexOf(look.id);
+  if (i >= 0) s -= 2 / (i + 1);
+  return s;
+}
+
+export function chooseLook(looks, weather, scene, opts = {}) {
+  let best = null; let bestScore = -Infinity;
+  for (const look of looks ?? []) {
+    const s = scoreLook(look, weather, scene, opts) + (opts.random ?? Math.random)() * 0.5;
+    if (s > bestScore) { best = look; bestScore = s; }
+  }
+  return best;
+}
+
+export function hairForLook(look, scene) {
+  if (look?.hair && HAIR_STYLES[look.hair]) return look.hair;
+  return HAIR_BY_SCENE[scene] ?? 'straight';
+}

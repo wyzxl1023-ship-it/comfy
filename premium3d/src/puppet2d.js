@@ -272,6 +272,7 @@ export class Puppet2D {
     this.shadow = sh;
     this.hairStyle = 'straight';
     this.hairTipY = null;
+    this.outfitId = 'default';
     this.update(0);
     return this;
   }
@@ -337,17 +338,54 @@ export class Puppet2D {
     if (style !== 'straight') {
       try { const r = await fetch(`${dir}/hair.json`, { cache: 'no-store' }); if (r.ok) tip = (await r.json()).hairTipY ?? null; } catch { /* 没写就用默认 */ }
     }
+    if (!(await this.swapLayers(dir, ['hairBack', 'hairFront'], ['hairBack', 'hairFront']))) return false;
+    this.hairTipY = tip;
+    this.hairStyle = style;
+    this.update(0);
+    return true;
+  }
+
+  // 换装：读 outfits/<id>/body.png、arm_l.png、arm_r.png（以及可选的 arm_r_wave.png、arm_r_face.png），
+  // 和人物原图同画布、同姿势（在小柚原图上局部重绘后按原图层的形状切出来）。
+  // 'default' 或空 = 用 character/ 顶层的默认衣服。缺 body.png 就保持不变。
+  setOutfit(id) {
+    this.outfitQueue = (this.outfitQueue ?? Promise.resolve()).then(() => this.loadOutfit(id)).catch(() => false);
+    return this.outfitQueue;
+  }
+
+  async loadOutfit(id) {
+    id = id || 'default';
+    if (!this.p || id === (this.outfitId ?? 'default')) return false;
+    const dir = id === 'default' ? this.base : `${this.base}/outfits/${id}`;
+    if (!(await this.swapLayers(dir, ['body', 'armL', 'armR'], ['body']))) return false;
+    this.outfitId = id;
+    this.update(0);
+    return true;
+  }
+
+  // 用 dir 里的图换掉若干图层（每层读它所有的 sprites，缺的就没有）；required 里的层缺了就整体放弃
+  async swapLayers(dir, ids, required = ids) {
     const built = [];
-    for (const id of ['hairBack', 'hairFront']) {
+    for (const id of ids) {
       const order = LAYERS.findIndex((d) => d.id === id);
       const def = LAYERS[order];
-      const img = await loadImage(`${dir}/${def.sprites.default}`);
-      if (!img) return false;
-      const t = new THREE.Texture(img);
-      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
-      const box = alphaBox(img);
-      if (!box) return false;
-      built.push({ id, order, def, tex: { default: t }, box });
+      const tex = {};
+      let box = null;
+      for (const [name, file] of Object.entries(def.sprites)) {
+        const img = await loadImage(`${dir}/${file}`);
+        if (!img) continue;
+        const t = new THREE.Texture(img);
+        t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+        tex[name] = t;
+        const b = alphaBox(img);
+        if (b) box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b;
+      }
+      if (!tex.default || !box) {
+        Object.values(tex).forEach((t) => t.dispose());
+        if (required.includes(id)) { built.forEach((b) => Object.values(b.tex).forEach((t) => t.dispose())); return false; }
+        continue;
+      }
+      built.push({ id, order, def, tex, box });
     }
     for (const b of built) {
       const old = this.byId[b.id];
@@ -356,7 +394,8 @@ export class Puppet2D {
       if (old) {
         this.root.remove(old.mesh);
         old.mesh.geometry.dispose();
-        old.tex.default?.dispose?.();
+        old.mat.dispose();
+        Object.values(old.tex).forEach((t) => t?.dispose?.());
         this.layers[this.layers.indexOf(old)] = layer;
       } else {
         this.layers.push(layer);
@@ -364,9 +403,6 @@ export class Puppet2D {
       }
       this.byId[b.id] = layer;
     }
-    this.hairTipY = tip;
-    this.hairStyle = style;
-    this.update(0);
     return true;
   }
 

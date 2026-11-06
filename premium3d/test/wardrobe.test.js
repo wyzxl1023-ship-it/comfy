@@ -85,3 +85,34 @@ test('发型跟着单品和场合走', async () => {
   assert.equal(hairFor({ items: {} }, 'busStop'), 'straight');
   assert.equal(hairFor({ items: { top: { hair: 'nope' } } }, 'busStop'), 'straight');
 });
+
+import { chooseLook, scoreLook, hairForLook } from '../src/wardrobe.js';
+
+const LOOKS = [
+  { id: 'summer', name: '露脐短T+牛仔短裙', warmth: 0, formal: 1, hair: 'ponytail' },
+  { id: 'office', name: '衬衫+西装裙', warmth: 1, formal: 2, hair: 'bun' },
+  { id: 'lounge', name: '家居服', warmth: 1, formal: 0, hair: 'messyBun' },
+  { id: 'trench', name: '风衣', warmth: 2, formal: 1, rain: true },
+  { id: 'swim', name: '泳衣', warmth: 0, formal: 0, beach: true },
+];
+const fixed = { random: () => 0 };
+
+test('2D look: weather and scene pick a sensible outfit', () => {
+  assert.equal(chooseLook(LOOKS, { temp: 30, condition: 'sunny' }, 'busStop', fixed).id, 'summer');
+  assert.equal(chooseLook(LOOKS, { temp: 22, condition: 'sunny' }, 'office', fixed).id, 'office');
+  assert.equal(chooseLook(LOOKS, { temp: 22, condition: 'cloudy' }, 'home', fixed).id, 'lounge');
+  assert.equal(chooseLook(LOOKS, { temp: 14, condition: 'rain' }, 'busStop', fixed).id, 'trench');
+});
+
+test('2D look: swimwear only at the beach', () => {
+  assert.equal(scoreLook(LOOKS[4], { temp: 32, condition: 'sunny' }, 'home'), -Infinity);
+  assert.equal(chooseLook(LOOKS, { temp: 32, condition: 'sunny' }, 'sunMoonLake', fixed).id, 'swim');
+  assert.equal(chooseLook([], { temp: 20 }, 'home'), null);
+});
+
+test('2D look: hair follows the look, else the scene', () => {
+  assert.equal(hairForLook(LOOKS[0], 'home'), 'ponytail');
+  assert.equal(hairForLook(LOOKS[3], 'home'), 'messyBun');
+  assert.equal(hairForLook(null, 'office'), 'bun');
+  assert.equal(hairForLook({ hair: 'bogus' }, 'busStop'), 'straight');
+});

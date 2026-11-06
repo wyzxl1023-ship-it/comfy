@@ -1,6 +1,6 @@
 // 状态接口消息校验（桥接服务和测试共用）
 // heard = 用户对小柚说的话（只记日志，页面不处理）
-export const TYPES = ['say', 'heard', 'state', 'scene', 'weather', 'level', 'gesture', 'emotion', 'outfit', 'hair'];
+export const TYPES = ['say', 'heard', 'state', 'scene', 'weather', 'level', 'gesture', 'emotion', 'outfit', 'hair', 'look'];
 export const STATES = ['idle', 'listening', 'thinking', 'speaking'];
 
 export function validate(m) {

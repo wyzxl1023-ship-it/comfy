@@ -6,7 +6,7 @@ import { LipSync } from './lipsync.js';
 import { planUtterance } from './intent.js';
 import { GESTURE_LABELS } from './gestures.js';
 import { Dresser, dominantColor, compressImage } from './dress.js';
-import { chooseOutfit, SLOTS, newItemFromUpload, hairFor } from './wardrobe.js';
+import { chooseOutfit, SLOTS, newItemFromUpload, hairFor, chooseLook, hairForLook } from './wardrobe.js';
 import { loadItems, saveItem, deleteItem, recentWorn, recordWorn, loadBackgrounds, saveBackground, deleteBackground } from './store.js';
 import { Backdrop, candidates } from './backdrop.js';
 import { fetchWeather } from './weather.js';
@@ -90,6 +90,8 @@ const state = {
   weather: { temp: Number(params.get('temp') ?? 22), condition: params.get('weather') || 'sunny', night: params.has('night') },
   items: [],
   outfit: null,
+  looks: [],
+  look: null,
   voice: !params.has('mute'),
   speaking: null,
 };
@@ -125,9 +127,16 @@ async function dressAuto({ announce = false } = {}) {
   if (!avatar.vrm && !avatar.isPuppet) return;
   const outfit = chooseOutfit(state.items, state.weather, state.scene, { recent: recentWorn() });
   state.outfit = outfit;
-  if (!avatar.isPuppet) await dresser.apply(outfit); // 2D 版换衣（局部重绘出的衣服图层）后续接入
-  else await avatar.setHair?.(hairFor(outfit, state.scene));
-  recordWorn(Object.values(outfit.items).map((i) => i.id));
+  if (!avatar.isPuppet) await dresser.apply(outfit);
+  else if (state.looks.length) {
+    // 2D 小柚：整套穿搭（character/outfits/），发型跟着这套走
+    const look = chooseLook(state.looks, state.weather, state.scene, { recent: recentWorn() });
+    state.look = look;
+    await avatar.setOutfit?.(look?.id);
+    await avatar.setHair?.(hairForLook(look, state.scene));
+    if (look) { recordWorn([look.id]); outfit.say = `今天穿${look.name}～`; }
+  } else await avatar.setHair?.(hairFor(outfit, state.scene));
+  if (!(avatar.isPuppet && state.looks.length)) recordWorn(Object.values(outfit.items).map((i) => i.id));
   renderWardrobe();
   if (announce) say(outfit.say);
 }
@@ -237,6 +246,7 @@ function handleMessage(m) {
     case 'emotion': return avatar.setEmotion(m.emotion);
     case 'outfit': return dressAuto({ announce: !!m.announce });
     case 'hair': return avatar.setHair?.(m.name);
+    case 'look': return avatar.setOutfit?.(m.name);
     default: return null;
   }
 }
@@ -369,6 +379,15 @@ function logPlan(plan) {
   $('#plan').textContent = `场景：${plan.scene ? SCENE_LABELS[plan.scene] : '不变'}　天气：${plan.weather ? WEATHER_LABELS[plan.weather] : '不变'}　表情：${plan.emotion}\n${g}`;
 }
 
+// 2D 小柚的整套穿搭清单；没有就退回到按单品选（只换发型）
+async function loadLooks(base) {
+  try {
+    const r = await fetch(`${base}/outfits/outfits.json`, { cache: 'no-store' });
+    if (r.ok) { const j = await r.json(); if (Array.isArray(j)) return j.filter((l) => l && l.id); }
+  } catch { /* 没有就算了 */ }
+  return [];
+}
+
 // 2D 手绘小柚：character/ 文件夹里有 points.json 就用它（?character=路径 可指定，?model=xx.vrm 强制用 3D）
 async function loadPuppet(base) {
   try {
@@ -379,6 +398,7 @@ async function loadPuppet(base) {
   $('#loading').classList.add('on');
   const puppet = new Puppet2D(scene);
   await puppet.load(base);
+  state.looks = await loadLooks(base);
   if (avatar.isPuppet) avatar.dispose();
   avatar = puppet;
   window.xiaoyou.avatar = puppet;
