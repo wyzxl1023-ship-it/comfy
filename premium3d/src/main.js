@@ -343,9 +343,30 @@ async function loadModel(url) {
 }
 
 // ---------- 主循环 ----------
+// 自动降分辨率：大屏（如 5K 竖屏）跑不满 60 帧时逐步降低渲染像素比，够快时再升回去
+const maxDpr = Math.min(window.devicePixelRatio, Number(params.get('dpr')) || 2);
+let dpr = maxDpr;
+let slowSeconds = 0;
+let fastSeconds = 0;
+function adaptResolution(fps) {
+  if (params.has('dpr') || document.hidden) return;
+  if (fps < 50) { slowSeconds++; fastSeconds = 0; } else if (fps >= 58) { fastSeconds++; slowSeconds = 0; }
+  if (slowSeconds >= 2 && dpr > 0.75) { dpr = Math.max(0.75, dpr - 0.25); renderer.setPixelRatio(dpr); layout(); slowSeconds = 0; }
+  if (fastSeconds >= 10 && dpr < maxDpr) { dpr = Math.min(maxDpr, dpr + 0.25); renderer.setPixelRatio(dpr); layout(); fastSeconds = 0; }
+}
+
 const clock = new THREE.Clock();
+let fpsFrames = 0;
+let fpsT = performance.now();
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  fpsFrames++;
+  if (performance.now() - fpsT > 1000) {
+    const el = $('#fps');
+    if (el) el.textContent = `${fpsFrames} fps · ${renderer.domElement.width}×${renderer.domElement.height}`;
+    adaptResolution(fpsFrames);
+    fpsFrames = 0; fpsT = performance.now();
+  }
   avatar.mouth = lips.update(dt);
   avatar.update(dt);
   dresser.update();
