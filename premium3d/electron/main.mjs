@@ -1,5 +1,5 @@
 // 小柚 Mac 应用：本机静态服务 + ESP32 桥接 + 全屏窗口。
-// 资产文件夹（ComfyUI 出的背景、立绘部件、衣服）放在外接盘，丢进去就能用，不用重新打包。
+// 资产文件夹（ComfyUI 出的背景、立绘部件、衣服）默认在 文稿/AI语音伴侣项目/小柚资产，没有就用外接盘；丢进去就能用，不用重新打包。
 import { app, BrowserWindow, Menu, dialog, screen, shell, powerSaveBlocker } from 'electron';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -10,7 +10,12 @@ import { startBridge } from '../bridge/bridge.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.join(here, '..', 'dist');
 const CONFIG = path.join(app.getPath('userData'), 'config.json');
-const DEFAULT_ASSETS = '/Volumes/固态T800/小柚资产';
+// 优先用本机的一份（不怕外接盘没插或休眠），没有再用外接盘
+const ASSET_CANDIDATES = [
+  path.join(app.getPath('documents'), 'AI语音伴侣项目', '小柚资产'),
+  '/Volumes/固态T800/小柚资产',
+];
+const DEFAULT_ASSETS = ASSET_CANDIDATES.find((d) => fs.existsSync(path.join(d, 'character'))) ?? ASSET_CANDIDATES[0];
 const WEB_PORT = 5180;
 const BRIDGE_PORT = 8765;
 
