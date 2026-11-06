@@ -26,14 +26,15 @@ const LAYERS = [
 
 // 动作：手臂外展角度（弧度，正 = 向外张开）、头的歪/转/点、持续时间
 export const PUPPET_GESTURES = {
-  wave: { duration: 2.4, armR: 1.05, armROsc: [0.16, 1.7], spriteR: 'wave', tilt: 0.05, turn: 0.25, eyes: 'smile' },
+  // elbowR/elbowL：小臂绕肘弯起的角度（没有 arm_r_wave.png 时靠它挥手）
+  wave: { duration: 2.6, armR: 0.42, elbowR: 2.25, elbowROsc: [0.32, 1.8], spriteR: 'wave', tilt: 0.05, turn: 0.25, eyes: 'smile' },
   nod: { duration: 1.3, nod: 1 },
   shake: { duration: 1.4, shake: 1 },
   think: { duration: 2.8, tilt: 0.09, turn: 0.45, lookUp: 1, armR: -0.05 },
   point: { duration: 2.2, armR: 0.65, turn: 0.4, tilt: 0.03 },
-  shrug: { duration: 1.9, armR: 0.32, armL: 0.32, shoulders: 1, tilt: 0.08 },
+  shrug: { duration: 1.9, armR: 0.15, armL: 0.15, shoulders: 1, tilt: 0.08 },
   bow: { duration: 2.2, bow: 1, eyes: 'closed' },
-  cheer: { duration: 1.9, armR: 0.9, armL: 0.9, bounce: 1, eyes: 'smile' },
+  cheer: { duration: 1.9, armR: 0.3, armL: 0.3, elbowR: 2.0, elbowL: 2.0, bounce: 1, eyes: 'smile' },
   heart: { duration: 2.3, armR: -0.12, armL: -0.12, tilt: 0.1, eyes: 'smile' },
   sad: { duration: 2.6, down: 1, armR: -0.04, armL: -0.04 },
   talk: { duration: 1.8, armR: 0.14, armROsc: [0.05, 0.9], turn: 0.15 },
@@ -226,6 +227,10 @@ export class Puppet2D {
     let armR = armIdle + (g.armR ?? 0) * w;
     let armL = armIdle + (g.armL ?? 0) * w;
     if (g.armROsc) armR += Math.sin(gt * Math.PI * 2 * g.armROsc[1]) * g.armROsc[0] * w;
+    const waveSprite = g.spriteR === 'wave' && this.byId.armR?.tex.wave;
+    let bendR = waveSprite ? 0 : (g.elbowR ?? 0) * w;
+    const bendL = (g.elbowL ?? 0) * w;
+    if (g.elbowROsc && !waveSprite) bendR += Math.sin(gt * Math.PI * 2 * g.elbowROsc[1]) * g.elbowROsc[0] * w;
     // 头发惯性：头左右动时发梢慢半拍
     const headDx = turn + tilt * 6;
     for (let left = dt; left > 0; left -= 0.02) { // 小步积分，帧率掉了也不会抖飞
@@ -244,6 +249,9 @@ export class Puppet2D {
     const shL = p.shoulderL ?? [neck[0] - H * 0.06, neck[1] + H * 0.03];
     const shR = p.shoulderR ?? [neck[0] + H * 0.06, neck[1] + H * 0.03];
     const hairTip = p.hairTipY ?? waist[1];
+    const elR = p.elbowR ?? [shR[0] + H * 0.02, (shR[1] + waist[1]) / 2 + H * 0.02];
+    const elL = p.elbowL ?? [2 * neck[0] - elR[0], elR[1]]; // 没量左肘就按脖子中线镜像
+    const elbowBand = H * 0.025;
     const hem = p.hem;
     const faceR = Math.max(H * 0.045, Math.abs(neck[1] - eyes[1]) * 1.3);
     const turnPx = H * 0.011;
@@ -292,8 +300,16 @@ export class Puppet2D {
           [x, y] = rot(x, y, neck[0], neck[1], tilt);
           y -= breathPx;
         } else if (def.group === 'armL' || def.group === 'armR') {
-          const sh = def.group === 'armL' ? shL : shR;
-          const a = def.group === 'armL' ? -armL : armR;
+          const left = def.group === 'armL';
+          const sh = left ? shL : shR;
+          const a = left ? -armL : armR;
+          const bend = left ? -bendL : bendR;
+          if (bend) {
+            // 肘部以下（小臂+手）绕肘转，肘附近渐变，避免折痕
+            const el = left ? elL : elR;
+            const wb = smooth((y - el[1] + elbowBand) / (2 * elbowBand));
+            if (wb > 0) [x, y] = rot(x, y, el[0], el[1], bend * wb);
+          }
           [x, y] = rot(x, y, sh[0], sh[1], a);
           y -= breathPx;
           if (g.bow) y += nod * nodPx * 0.4;
