@@ -4,4 +4,4 @@
 // 消息格式见 README「状态接口」。
 import { startBridge } from './bridge.mjs';
 
-startBridge({ port: Number(process.env.PORT || 8765) });
+startBridge({ port: Number(process.env.PORT || 8765), logDir: process.env.LOG_DIR || null });

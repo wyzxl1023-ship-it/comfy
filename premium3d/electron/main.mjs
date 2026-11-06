@@ -163,7 +163,8 @@ app.whenReady().then(() => {
   ensureAssetDirs();
   applyLogin();
   startWeb();
-  startBridge({ port: BRIDGE_PORT });
+  // 对话日志：文稿/AI语音伴侣项目/小柚聊天记录/YYYY-MM-DD.jsonl（只存本机）
+  startBridge({ port: BRIDGE_PORT, logDir: path.join(app.getPath('documents'), 'AI语音伴侣项目', '小柚聊天记录') });
   powerSaveBlocker.start('prevent-display-sleep'); // 展示时不黑屏
   buildMenu();
   createWindow();
