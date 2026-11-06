@@ -4,7 +4,9 @@ import { paintMaterials, cloudSky } from './style.js';
 // 程序化生成的场景（全部用基础几何体 + Canvas 贴图，不依赖外部素材，无版权问题）。
 // 以后可替换为 Blender 做的 glTF 场景或 HDRI 全景图：只要实现同样的 build(ctx) 即可。
 
-export const SCENE_LABELS = { home: '在家', busStop: '公交车站', office: '公司' };
+export const SCENE_LABELS = { home: '在家', bedroom: '卧室', busStop: '公交车站', office: '公司' };
+// 没有专属素材时借用的场景（背景图和程序化 3D 场景都按这个顺序找）
+export const SCENE_FALLBACK = { bedroom: 'home' };
 export const WEATHER_LABELS = { sunny: '晴', cloudy: '多云', rain: '下雨', snow: '下雪' };
 
 const SKY = {
@@ -121,6 +123,7 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 // ---------- 场景 ----------
 // 每个 builder 返回 { group, outdoor, weatherArea, sky? }
 const BUILDERS = {
+  bedroom() { return BUILDERS.home(); }, // 还没有专门的 3D 卧室，先用客厅
   home() {
     const g = new THREE.Group();
     const wall = mat('#efe3d3');

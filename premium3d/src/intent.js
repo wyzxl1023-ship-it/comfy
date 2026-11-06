@@ -2,14 +2,15 @@
 // 以后可以换成 LLM 打标签：只要输出同样的 Plan 结构即可。
 //
 // Plan = {
-//   scene: 'home' | 'busStop' | 'office' | null,   // null = 保持当前场景
+//   scene: 'home' | 'bedroom' | 'busStop' | 'office' | null,   // null = 保持当前场景
 //   emotion: 'happy' | 'sad' | 'angry' | 'surprised' | 'relaxed' | 'neutral',
 //   weather: 'sunny' | 'cloudy' | 'rain' | 'snow' | null,
 //   beats: [{ start, end, text, gesture }]           // start/end 是字符下标
 // }
 
 export const SCENE_KEYWORDS = {
-  home: ['在家', '回家', '家里', '客厅', '卧室', '沙发', '睡觉', '晚安', '做饭', '吃饭了', '起床', '周末宅'],
+  home: ['在家', '回家', '家里', '客厅', '沙发', '做饭', '吃饭了', '周末宅'],
+  bedroom: ['卧室', '房间里', '床上', '被窝', '睡觉', '晚安', '睡不着', '困了', '做梦', '起床', '睡前', '熬夜'],
   busStop: ['公交', '车站', '站台', '等车', '坐车', '地铁', '出门', '通勤', '路上', '打车', '下雨'],
   office: ['公司', '上班', '办公室', '开会', '加班', '老板', '同事', '工作', '项目', '报告', '工位'],
 };
@@ -17,6 +18,7 @@ export const SCENE_KEYWORDS = {
 // 顺序即优先级：靠前的先匹配
 export const GESTURE_RULES = [
   { gesture: 'wave', words: ['你好', '嗨', '哈喽', 'hello', 'hi', '拜拜', '再见', '早上好', '晚上好', '回来啦', '欢迎'] },
+  { gesture: 'shy', words: ['害羞', '脸红', '讨厌啦', '人家', '才没有', '哎呀你', '被你夸', '别夸了', '羞羞'] },
   { gesture: 'bow', words: ['谢谢', '感谢', '对不起', '抱歉', '不好意思', '辛苦了'] },
   { gesture: 'cheer', words: ['太好了', '太棒了', '耶', '加油', '好开心', '开心', '恭喜', '成功了', '哇'] },
   { gesture: 'shrug', words: ['不知道', '不清楚', '也许', '可能吧', '随便', '无所谓', '谁知道'] },

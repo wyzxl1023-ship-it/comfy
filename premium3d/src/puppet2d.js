@@ -21,6 +21,8 @@ const LAYERS = [
   { id: 'eyes', group: 'head', depth: 0.75, sprites: { open: 'eyes_open.png', closed: 'eyes_closed.png', smile: 'eyes_smile.png', default: 'eyes_open.png' } },
   { id: 'brows', group: 'head', depth: 0.8, sprites: { default: 'brows.png' } },
   { id: 'mouth', group: 'head', depth: 0.65, sprites: { closed: 'mouth_closed.png', half: 'mouth_half.png', open: 'mouth_open.png', smile: 'mouth_smile.png', default: 'mouth_closed.png' } },
+  // 脸红：有 blush.png 就用画好的；没有就按 points.json 的 eyes/mouth（或 cheeks）程序化画两团粉色
+  { id: 'blush', group: 'head', depth: 0.7, procedural: 'blush', fade: true, sprites: { default: 'blush.png' } },
   { id: 'hairFront', group: 'head', depth: 1.0, hair: true, sprites: { default: 'hair_front.png' } },
 ];
 
@@ -37,6 +39,7 @@ export const PUPPET_GESTURES = {
   cheer: { duration: 1.9, armR: 0.3, armL: 0.3, elbowR: 2.0, elbowL: 2.0, bounce: 1, eyes: 'smile' },
   heart: { duration: 2.3, armR: -0.12, armL: -0.12, tilt: 0.1, eyes: 'smile' },
   sad: { duration: 2.6, down: 1, armR: -0.04, armL: -0.04 },
+  shy: { duration: 2.8, blush: 1, tilt: 0.08, turn: -0.35, nod0: 0.35, eyes: 'smile', armR: -0.06, armL: -0.06 },
   talk: { duration: 1.8, armR: 0.14, armROsc: [0.05, 0.9], turn: 0.15 },
 };
 
@@ -67,6 +70,34 @@ function alphaBox(img) {
   if (x1 < 0) return null;
   const pad = 2;
   return [Math.max(0, (x0 - pad) * step), Math.max(0, (y0 - pad) * step), Math.min(img.width, (x1 + 1 + pad) * step), Math.min(img.height, (y1 + 1 + pad) * step)];
+}
+
+// 两团柔和的腮红，画在和人物同尺寸（缩小 4 倍）的透明画布上，UV 直接对齐原图
+function blushCanvas(W, H, p) {
+  const s = 4;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(W / s); c.height = Math.ceil(H / s);
+  const g = c.getContext('2d');
+  const eyes = p.eyes ?? [W / 2, H * 0.12];
+  const mouth = p.mouth ?? [eyes[0], eyes[1] + H * 0.03];
+  const d = Math.max(H * 0.012, mouth[1] - eyes[1]);
+  const cheeks = p.cheeks ?? [[eyes[0] - d * 1.05, eyes[1] + d * 0.55], [eyes[0] + d * 1.05, eyes[1] + d * 0.55]];
+  const r = (p.blushRadius ?? d * 0.42) / s;
+  for (const [x, y] of cheeks) {
+    g.save();
+    g.translate(x / s, y / s);
+    g.scale(1.45, 1);
+    const grd = g.createRadialGradient(0, 0, 0, 0, 0, r);
+    grd.addColorStop(0, 'rgba(240,110,120,0.55)');
+    grd.addColorStop(0.6, 'rgba(240,120,125,0.28)');
+    grd.addColorStop(1, 'rgba(240,130,130,0)');
+    g.fillStyle = grd;
+    g.fillRect(-r, -r, 2 * r, 2 * r);
+    g.restore();
+  }
+  const box = cheeks.reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [W, H, 0, 0]);
+  const R = r * s * 1.5 + 8;
+  return { canvas: c, box: [Math.max(0, box[0] - R), Math.max(0, box[1] - R), Math.min(W, box[2] + R), Math.min(H, box[3] + R)] };
 }
 
 function shadowTexture() {
@@ -129,6 +160,13 @@ export class Puppet2D {
         const b = alphaBox(img);
         if (b) box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b;
       }
+      if (!Object.keys(tex).length && def.procedural === 'blush') {
+        const b = blushCanvas(W, H, p);
+        const t = new THREE.CanvasTexture(b.canvas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        tex.default = t;
+        box = b.box;
+      }
       if (!Object.keys(tex).length || !box) continue;
       const layer = this.buildLayer(def, tex, box, i);
       this.layers.push(layer);
@@ -174,6 +212,7 @@ export class Puppet2D {
     mesh.frustumCulled = false;
     mesh.position.z = order * 0.001;
     this.root.add(mesh);
+    if (def.fade) { mat.opacity = 0; mesh.visible = false; }
     this.materials[def.id] = [mat];
     return { def, tex, mesh, mat, basePx, pos, n };
   }
@@ -221,6 +260,7 @@ export class Puppet2D {
     let nod = (g.lookUp ? -0.5 * w : 0);
     if (g.nod) nod += Math.max(0, Math.sin(gt * 7)) * w; // 点两下
     if (g.bow) nod += 1.6 * w;
+    if (g.nod0) nod += g.nod0 * w;
     if (g.down || this.emotion === 'sad') nod += 0.6 * (g.down ? w : 1);
     // 手臂外展
     const armIdle = 0.012 * Math.sin(t * 1.55);
@@ -267,6 +307,10 @@ export class Puppet2D {
     this.setSprite('eyes', eyeName);
     const m = this.mouth;
     this.setSprite('mouth', m > 0.45 ? 'open' : m > 0.12 ? 'half' : (this.emotion === 'happy' ? 'smile' : 'closed'));
+    // 脸红：害羞动作时淡入，情绪是 shy 时一直微红
+    const blush = Math.max((g.blush ?? 0) * w, this.emotion === 'shy' ? 0.7 : 0);
+    const B = this.byId.blush;
+    if (B) { B.mat.opacity = blush; B.mesh.visible = blush > 0.01; }
     const waving = g.spriteR === 'wave' && w > 0.4 && this.byId.armR?.tex.wave;
     this.setSprite('armR', waving ? 'wave' : 'default');
 

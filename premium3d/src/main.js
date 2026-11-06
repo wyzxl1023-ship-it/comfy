@@ -294,7 +294,7 @@ function buildUI() {
     refreshBackdrop();
   };
   $('#bgClear').onclick = async () => {
-    for (const key of candidates(state.scene, state.weather)) { backdrop.uploads.delete(key); await deleteBackground(key); }
+    for (const key of candidates(state.scene, state.weather, { fallback: false })) { backdrop.uploads.delete(key); await deleteBackground(key); }
     refreshBackdrop();
   };
   $('#togglePanel').onclick = () => { document.body.classList.toggle('panel-hidden'); layout(); };

@@ -72,3 +72,7 @@ test('天气 → 需要的配饰', () => {
   assert.ok(optionalSlotsFor({ temp: 15, condition: 'rain' }, 'busStop').includes('umbrella'));
   assert.ok(!optionalSlotsFor({ temp: 15, condition: 'rain' }, 'office').includes('umbrella'));
 });
+
+test('卧室算在家：不加外套雨伞', () => {
+  assert.deepEqual(optionalSlotsFor({ temp: 5, condition: 'rain' }, 'bedroom'), []);
+});

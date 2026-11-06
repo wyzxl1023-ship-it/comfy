@@ -70,3 +70,10 @@ test('话里提到天气', () => {
   assert.equal(detectWeather('明天会下雪吗'), 'snow');
   assert.equal(detectWeather('你好'), null);
 });
+
+test('卧室场景和害羞动作', () => {
+  assert.equal(detectScene('好困了，我要去睡觉啦，晚安'), 'bedroom');
+  assert.equal(detectScene('我回家啦，躺在沙发上'), 'home');
+  assert.equal(gestureForClause('哎呀你这样说我好害羞'), 'shy');
+  assert.ok(GESTURES.shy);
+});

@@ -1,14 +1,18 @@
 import * as THREE from 'three';
+import { SCENE_FALLBACK } from './scenes.js';
 
 // 2.5D 背景：用一张画好的背景图（手绘/AI 出图）铺满画面，小柚站在画前面。
 // 找图顺序：主人上传的 > public/backgrounds/ 里的文件；都没有就用程序化 3D 场景。
 // 文件命名：{场景}-{天气}[-night].jpg，例如 busStop-rain.jpg、home-sunny-night.jpg；
 //          也可以只放 {场景}.jpg，所有天气共用（雨雪粒子和光照仍会叠加）。
-export function candidates(scene, weather) {
+// 卧室这类场景没有对应的图时，退回到 SCENE_FALLBACK 里的场景（卧室 → 在家）。
+export function candidates(scene, weather, { fallback = true } = {}) {
   const { condition, night } = weather;
   const out = [];
   if (night) out.push(`${scene}-${condition}-night`, `${scene}-night`);
   out.push(`${scene}-${condition}`, scene);
+  const fb = fallback && SCENE_FALLBACK[scene];
+  if (fb) out.push(...candidates(fb, weather));
   return out;
 }
 

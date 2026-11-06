@@ -105,6 +105,15 @@ export const GESTURES = {
     ],
   },
 
+  // 害羞：低头、头扭向一边、肩膀微缩（2D 版还会脸红）
+  shy: {
+    duration: 2.6,
+    frames: [
+      k(0.0, { head: [0.2, -0.3, 0.12], neck: [0.05, -0.08, 0], spine: [0.04, 0.06, 0], leftShoulder: [0, 0, 0.06], rightShoulder: [0, 0, -0.06] }),
+      k(1.0, { head: [0.2, -0.3, 0.12], neck: [0.05, -0.08, 0], spine: [0.04, 0.06, 0], leftShoulder: [0, 0, 0.06], rightShoulder: [0, 0, -0.06] }),
+    ],
+  },
+
   // 低落：低头、肩膀垂下
   sad: {
     duration: 2.4,
@@ -128,7 +137,7 @@ export const GESTURES = {
 
 export const GESTURE_LABELS = {
   wave: '挥手', nod: '点头', shake: '摇头', think: '思考', point: '指向',
-  shrug: '摊手', bow: '鞠躬', cheer: '欢呼', heart: '捂心', sad: '低落', talk: '说话手势',
+  shrug: '摊手', bow: '鞠躬', cheer: '欢呼', heart: '捂心', shy: '害羞', sad: '低落', talk: '说话手势',
 };
 
 // 采样某个动作在 t 秒时的姿势

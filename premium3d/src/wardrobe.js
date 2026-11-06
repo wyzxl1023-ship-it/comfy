@@ -51,14 +51,15 @@ export function targetWarmth(temp) {
 }
 
 const OUTDOOR = new Set(['busStop']);
-const SCENE_FORMAL = { office: 2, busStop: 1, home: 0 };
+const SCENE_FORMAL = { office: 2, busStop: 1, home: 0, bedroom: 0 };
+const AT_HOME = new Set(['home', 'bedroom']);
 
 // 什么天气需要哪些可选单品
 export function optionalSlotsFor(weather, scene) {
   const { temp, condition } = weather;
   const out = [];
   const wet = condition === 'rain' || condition === 'snow';
-  const goingOut = scene !== 'home';
+  const goingOut = !AT_HOME.has(scene);
   if (goingOut && (temp < 18 || condition === 'rain')) out.push('outer');
   if (goingOut && (temp < 5 || (condition === 'sunny' && temp >= 28))) out.push('hat');
   if (goingOut && temp < 8) out.push('scarf');
@@ -102,8 +103,8 @@ export function scoreItem(item, ctx) {
   s -= Math.abs((item.warmth ?? 1) - want) * warmthWeight;
   const formalWant = SCENE_FORMAL[scene] ?? 1;
   s -= Math.abs((item.formal ?? 1) - formalWant) * 1.2;
-  if (scene === 'home' && item.formal === 0) s += 1; // 在家就穿舒服的
-  if (scene !== 'home' && (weather.condition === 'rain' || weather.condition === 'snow') && (item.slot === 'shoes' || item.slot === 'outer')) {
+  if (AT_HOME.has(scene) && item.formal === 0) s += 1; // 在家就穿舒服的
+  if (!AT_HOME.has(scene) && (weather.condition === 'rain' || weather.condition === 'snow') && (item.slot === 'shoes' || item.slot === 'outer')) {
     s += item.waterproof ? 1.5 : 0;
   }
   if (item.slot === 'hat') {
