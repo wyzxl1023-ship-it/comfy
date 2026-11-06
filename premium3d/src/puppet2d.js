@@ -16,7 +16,8 @@ const LAYERS = [
   { id: 'hairBack', group: 'head', depth: -0.5, hair: true, sprites: { default: 'hair_back.png' } },
   { id: 'body', group: 'body', hem: true, sprites: { default: 'body.png' } },
   { id: 'armL', group: 'armL', sprites: { default: 'arm_l.png' } },
-  { id: 'armR', group: 'armR', sprites: { default: 'arm_r.png', wave: 'arm_r_wave.png' } },
+  // arm_r_face.png（可选）：右手抬到下巴/嘴边的整条手臂，托腮、吃东西、喝奶茶、飞吻用；没有就用肘部弯折近似（手只到胸口）
+  { id: 'armR', group: 'armR', sprites: { default: 'arm_r.png', wave: 'arm_r_wave.png', face: 'arm_r_face.png' } },
   { id: 'head', group: 'head', depth: 0.35, face: true, sprites: { default: 'head.png' } },
   { id: 'eyes', group: 'head', depth: 0.75, sprites: { open: 'eyes_open.png', closed: 'eyes_closed.png', smile: 'eyes_smile.png', wink: 'eyes_wink.png', default: 'eyes_open.png' } },
   { id: 'brows', group: 'head', depth: 0.8, sprites: { default: 'brows.png' } },
@@ -46,27 +47,30 @@ export const PUPPET_GESTURES = {
   hug: { duration: 2.6, armR: 0.36, armL: 0.36, elbowR: 0.55, elbowL: 0.55, tilt: 0.06, bounce: 0.4, eyes: 'smile', blush: 0.35 },
   kiss: {
     duration: 2.4, blush: 0.5, tilt: 0.07,
-    armR: (u) => (u < 0.45 ? 0.1 : 0.1 + 0.32 * smooth((u - 0.45) / 0.3)),
-    elbowR: (u) => (u < 0.45 ? -2.5 : -2.5 + 3.1 * smooth((u - 0.45) / 0.3)),
+    spriteR: (u) => (u < 0.45 ? 'face' : null),
+    armR: (u) => (u < 0.45 ? 0.2 : 0.2 + 0.25 * smooth((u - 0.45) / 0.3)),
+    elbowR: (u) => (u < 0.45 ? -1.9 : -1.9 + 2.5 * smooth((u - 0.45) / 0.3)),
     eyes: (u) => (u < 0.45 ? 'closed' : 'smile'),
     mouth: (u) => (u < 0.45 ? 'closed' : 'smile'),
   },
-  chin: { duration: 3.2, armR: 0.08, elbowR: -2.6, tilt: -0.11, turn: 0.2, eyes: 'smile' },
-  cry: { duration: 3.0, tears: 1, eyes: 'closed', mouth: 'half', down: 1, sob: 1, armR: 0.06, armL: 0.06, elbowR: -2.4, elbowL: -2.4 },
+  chin: { duration: 3.2, spriteR: 'face', armR: 0.08, elbowR: -2.6, tilt: -0.11, turn: 0.2, eyes: 'smile' },
+  cry: { duration: 3.0, tears: 1, eyes: 'closed', mouth: 'half', down: 1, sob: 1, armR: 0.04, armL: 0.04, elbowR: -1.5, elbowL: -1.5 },
   angry: { duration: 2.2, turn: -0.7, lookUp: 0.6, tilt: -0.05, eyes: 'closed', mouth: 'closed', armR: 0.1, armL: 0.1, hop: 1 },
-  eat: { duration: 2.8, armR: 0.08, elbowR: -2.4, elbowROsc: [0.22, 1.4], eyes: 'smile', mouth: (u, gt) => (Math.sin(gt * 9) > 0 ? 'half' : 'closed') },
+  eat: { duration: 2.8, spriteR: 'face', armR: 0.08, elbowR: -2.4, elbowROsc: [0.22, 1.4], eyes: 'smile', mouth: (u, gt) => (Math.sin(gt * 9) > 0 ? 'half' : 'closed') },
   cute: { duration: 2.6, tiltOsc: [0.11, 1.5], bounce: 0.35, eyes: 'smile', blush: 0.4, mouth: 'smile' },
-  drink: { duration: 2.8, armR: 0.08, elbowR: -2.55, lookUp: (u) => 0.45 * Math.sin(Math.PI * u), eyes: (u) => (u > 0.3 && u < 0.75 ? 'closed' : 'smile') },
+  drink: { duration: 2.8, spriteR: 'face', armR: 0.08, elbowR: -2.55, lookUp: (u) => 0.45 * Math.sin(Math.PI * u), eyes: (u) => (u > 0.3 && u < 0.75 ? 'closed' : 'smile') },
   laugh: { duration: 2.2, lookUp: 0.8, bounce: 0.8, eyes: 'smile', mouth: 'open', armR: 0.05, armL: 0.05 },
   wink: { duration: 1.8, eyes: 'wink', tilt: 0.1, turn: 0.2, mouth: 'smile' },
   yawn: {
     duration: 3.2, eyes: 'closed', lookUp: 0.45, tilt: 0.05,
+    mouthScale: (u) => 1 + 0.9 * Math.sin(Math.PI * Math.min(1, Math.max(0, (u - 0.12) / 0.6))),
     mouth: (u) => (u > 0.15 && u < 0.7 ? 'open' : 'closed'),
     armR: (u) => 0.28 * Math.sin(Math.PI * u), armL: (u) => 0.28 * Math.sin(Math.PI * u),
     elbowR: (u) => 1.9 * Math.sin(Math.PI * u), elbowL: (u) => 1.9 * Math.sin(Math.PI * u),
   },
   surprised: { duration: 1.6, lookUp: 0.35, eyes: 'open', mouth: 'open', armR: 0.12, armL: 0.12, shoulders: 1, hop: 1 },
-  coverEars: { duration: 2.4, armR: 0.3, armL: 0.3, elbowR: 2.95, elbowL: 2.95, eyes: 'closed', shake: 0.35 },
+  // 手够不到耳朵（要专门的手臂图），先做成缩脖子、闭眼、摇头的“不听不听”
+  coverEars: { duration: 2.4, shoulders: 1, eyes: 'closed', mouth: 'closed', shake: 0.45, nod0: 0.3, armR: -0.04, armL: -0.04 },
   leaveBack: {
     duration: 3.2,
     turn: (u) => (u < 0.55 ? -0.85 : -0.85 + 1.15 * smooth((u - 0.55) / 0.2)),
@@ -139,6 +143,22 @@ function blushCanvas(W, H, p) {
   const box = cheeks.reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [W, H, 0, 0]);
   const R = r * s * 1.5 + 8;
   return { canvas: c, box: [Math.max(0, box[0] - R), Math.max(0, box[1] - R), Math.min(W, box[2] + R), Math.min(H, box[3] + R)] };
+}
+
+// 没有 eyes_wink.png 时自己拼：画面左半边用睁眼图，右半边用闭眼图（以两眼中点为界）
+function winkTexture(openImg, closedImg, midX) {
+  const c = document.createElement('canvas');
+  c.width = openImg.width; c.height = openImg.height;
+  const g = c.getContext('2d');
+  g.drawImage(openImg, 0, 0);
+  g.clearRect(midX, 0, c.width - midX, c.height);
+  g.save();
+  g.beginPath(); g.rect(midX, 0, c.width - midX, c.height); g.clip();
+  g.drawImage(closedImg, 0, 0);
+  g.restore();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 // 两道泪痕：从眼睛下方往下流的浅蓝色细条
@@ -237,6 +257,7 @@ export class Puppet2D {
         tex.default = t;
         box = b.box;
       }
+      if (def.id === 'eyes' && !tex.wink && tex.open && tex.closed) tex.wink = winkTexture(tex.open.image, tex.closed.image, p.eyes?.[0] ?? W / 2);
       if (!Object.keys(tex).length || !box) continue;
       const layer = this.buildLayer(def, tex, box, i);
       this.layers.push(layer);
@@ -342,7 +363,7 @@ export class Puppet2D {
     let armR = armIdle + (g.armR ?? 0) * w;
     let armL = armIdle + (g.armL ?? 0) * w;
     if (g.armROsc) armR += Math.sin(gt * Math.PI * 2 * g.armROsc[1]) * g.armROsc[0] * w;
-    const waveSprite = g.spriteR === 'wave' && this.byId.armR?.tex.wave;
+    const waveSprite = g.spriteR && this.byId.armR?.tex[g.spriteR]; // 有专门的手臂图就不靠弯肘
     let bendR = waveSprite ? 0 : (g.elbowR ?? 0) * w;
     const bendL = (g.elbowL ?? 0) * w;
     if (g.elbowROsc && !waveSprite) bendR += Math.sin(gt * Math.PI * 2 * g.elbowROsc[1]) * g.elbowROsc[0] * w;
@@ -378,7 +399,7 @@ export class Puppet2D {
     this.blinkTimer -= dt;
     if (this.blinkTimer <= 0 && this.blinkT < 0) { this.blinkT = 0; this.blinkTimer = 2.2 + Math.random() * 3.5; }
     let eyeName = (w > 0.5 && g.eyes) || ({ happy: 'smile', relaxed: 'smile' }[this.emotion] ?? 'open');
-    if (eyeName === 'wink' && !this.byId.eyes?.tex.wink) eyeName = 'smile'; // 还没画单眼眨的图就先笑眯眼
+    if (eyeName === 'wink' && !this.byId.eyes?.tex.wink) eyeName = 'smile';
     if (this.blinkT >= 0 && w > 0.5 && g.eyes) this.blinkT = -1; // 做动作时不眨眼，免得打断表情
     if (this.blinkT >= 0) { this.blinkT += dt; if (this.blinkT < 0.13) eyeName = 'closed'; else this.blinkT = -1; }
     this.setSprite('eyes', eyeName);
@@ -393,8 +414,8 @@ export class Puppet2D {
     const tears = (g.tears ?? 0) * w;
     const T = this.byId.tears;
     if (T) { T.mat.opacity = tears; T.mesh.visible = tears > 0.01; }
-    const waving = g.spriteR === 'wave' && w > 0.4 && this.byId.armR?.tex.wave;
-    this.setSprite('armR', waving ? 'wave' : 'default');
+    const armSprite = g.spriteR && w > 0.4 && this.byId.armR?.tex[g.spriteR] ? g.spriteR : 'default';
+    this.setSprite('armR', armSprite);
 
     // ---------- 逐顶点变形 ----------
     const rot = (x, y, cx, cy, a) => {
@@ -416,6 +437,12 @@ export class Puppet2D {
           let s = clamp01((y - waist[1]) / Math.max(1, hem - waist[1])) ** 2;
           if (y > hem) s *= clamp01(1 - (y - hem) / (H * 0.03));
           x += s * H * 0.003 * Math.sin(t * 1.3 + 0.5);
+        }
+        // 打哈欠：嘴巴图层以嘴为中心竖向拉大
+        if (def.id === 'mouth' && g.mouthScale && p.mouth) {
+          const sc = 1 + (g.mouthScale - 1) * w;
+          y = p.mouth[1] + (y - p.mouth[1]) * sc;
+          x = p.mouth[0] + (x - p.mouth[0]) * (1 + (sc - 1) * 0.35);
         }
         // 2) 组内运动
         if (def.group === 'head') {
