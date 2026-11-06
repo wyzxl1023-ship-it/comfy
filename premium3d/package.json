@@ -1,0 +1,22 @@
+{
+  "name": "xiaoyou-premium3d",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "小柚高端版 3D 形象原型：VRM 角色 + 话语→动作 + 场景切换 + 音量口型",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "bridge": "node bridge/server.mjs",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.5.5",
+    "three": "^0.180.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  }
+}

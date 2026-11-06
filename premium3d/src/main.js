@@ -1,0 +1,372 @@
+import * as THREE from 'three';
+import { Avatar } from './avatar.js';
+import { SceneManager, SCENE_LABELS, WEATHER_LABELS } from './scenes.js';
+import { LipSync } from './lipsync.js';
+import { planUtterance } from './intent.js';
+import { GESTURE_LABELS } from './gestures.js';
+import { Dresser, dominantColor, compressImage } from './dress.js';
+import { chooseOutfit, SLOTS, newItemFromUpload } from './wardrobe.js';
+import { loadItems, saveItem, deleteItem, recentWorn, recordWorn } from './store.js';
+import { fetchWeather } from './weather.js';
+import { connectBridge } from './bridge-client.js';
+
+const params = new URLSearchParams(location.search);
+const $ = (s) => document.querySelector(s);
+
+// ---------- 渲染器（自适应任意尺寸屏幕） ----------
+const canvas = $('#stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: params.has('capture') });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, Number(params.get('dpr')) || 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+const scenes = new SceneManager(scene);
+const avatar = new Avatar(scene);
+const dresser = new Dresser(avatar);
+const lips = new LipSync();
+
+// 取景：竖屏看全身，横屏看大半身；人物始终在画面中间
+const frame = { headY: 1.45, footY: 0 };
+function layout() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  const portrait = Math.min(Math.max((1.2 - camera.aspect) / 0.7, 0), 1); // 1=竖屏 0=横屏
+  const top = frame.headY + 0.32;
+  const bottom = THREE.MathUtils.lerp(frame.headY * 0.25, frame.footY + 0.12, portrait);
+  const span = top - bottom;
+  const centerY = (top + bottom) / 2;
+  camera.fov = 30;
+  const vHalf = THREE.MathUtils.degToRad(camera.fov / 2);
+  let dist = (span / 2 / Math.tan(vHalf)) * 1.08;
+  // 窄屏还要保证张开手臂不出画
+  const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+  dist = Math.max(dist, 0.75 / Math.tan(hHalf));
+  camera.position.set(0, centerY + 0.05, dist);
+  camera.lookAt(0, centerY, 0);
+  // 宽屏且面板打开时，把人物放到面板左边剩余区域的中间
+  const panel = document.body.classList.contains('panel-hidden') ? 0 : $('#panel')?.offsetWidth ?? 0;
+  if (panel && camera.aspect > 1.2 && panel < w * 0.5) camera.setViewOffset(w, h, panel / 2, 0, w, h);
+  else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', layout);
+
+// ---------- 状态 ----------
+const state = {
+  scene: params.get('scene') || 'home',
+  weather: { temp: Number(params.get('temp') ?? 22), condition: params.get('weather') || 'sunny', night: params.has('night') },
+  items: [],
+  outfit: null,
+  voice: !params.has('mute'),
+  speaking: null,
+};
+
+// ---------- 场景切换（淡入淡出） ----------
+const fader = $('#fade');
+let sceneSwitch = Promise.resolve();
+function switchScene(key) {
+  if (!SCENE_LABELS[key] || key === scenes.key) return sceneSwitch;
+  sceneSwitch = sceneSwitch.then(async () => {
+    fader.classList.add('on');
+    await wait(450);
+    scenes.set(key);
+    state.scene = key;
+    await dressAuto();
+    fader.classList.remove('on');
+    syncUI();
+  });
+  return sceneSwitch;
+}
+
+function setWeather(w) {
+  state.weather = { ...state.weather, ...w };
+  scenes.setWeather(state.weather);
+  dressAuto();
+  syncUI();
+}
+
+// ---------- 衣橱 ----------
+async function dressAuto({ announce = false } = {}) {
+  if (!avatar.vrm) return;
+  const outfit = chooseOutfit(state.items, state.weather, state.scene, { recent: recentWorn() });
+  state.outfit = outfit;
+  await dresser.apply(outfit);
+  recordWorn(Object.values(outfit.items).map((i) => i.id));
+  renderWardrobe();
+  if (announce) say(outfit.say);
+}
+
+async function wearManually(item) {
+  const items = { ...(state.outfit?.items ?? {}) };
+  if (items[item.slot]?.id === item.id && !['top', 'bottom', 'shoes'].includes(item.slot)) delete items[item.slot];
+  else items[item.slot] = item;
+  state.outfit = { items, say: '' };
+  await dresser.apply(state.outfit);
+  renderWardrobe();
+}
+
+// ---------- 说话：话语 → 场景 / 表情 / 动作 / 口型 ----------
+async function say(text, msg = {}) {
+  if (!text) return;
+  stopSpeaking();
+  const plan = planUtterance(text, { scene: msg.scene, emotion: msg.emotion });
+  $('#caption').textContent = text;
+  $('#caption').classList.add('on');
+  logPlan(plan);
+  if (plan.weather && plan.weather !== state.weather.condition) {
+    state.weather = { ...state.weather, condition: plan.weather };
+    scenes.setWeather(state.weather);
+  }
+  if (plan.scene && plan.scene !== scenes.key) await switchScene(plan.scene);
+  else if (plan.weather) await dressAuto();
+  syncUI();
+  avatar.setEmotion(plan.emotion);
+
+  const fired = new Set();
+  const fireAt = (charIndex) => {
+    for (const [i, b] of plan.beats.entries()) {
+      if (!fired.has(i) && charIndex >= b.start) {
+        fired.add(i);
+        if (b.gesture) avatar.play(b.gesture);
+      }
+    }
+  };
+  const token = {};
+  state.speaking = token;
+  const done = () => {
+    if (state.speaking !== token) return;
+    state.speaking = null;
+    lips.stop();
+    setTimeout(() => { if (!state.speaking) { avatar.setEmotion('neutral'); $('#caption').classList.remove('on'); } }, 1500);
+  };
+
+  if (msg.audioUrl) {
+    const audio = new Audio(msg.audioUrl);
+    audio.crossOrigin = 'anonymous';
+    await new Promise((r) => { audio.onloadedmetadata = r; audio.onerror = r; });
+    const dur = audio.duration || text.length / 4.6;
+    for (const b of plan.beats) setTimeout(() => fireAt(b.start), (dur * b.start / text.length) * 1000);
+    await lips.playAudio(audio);
+    done();
+  } else if (state.voice && 'speechSynthesis' in window) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 1.05;
+    u.pitch = 1.2;
+    const v = speechSynthesis.getVoices().find((x) => /zh[-_]CN/i.test(x.lang) && /Ting|Mei|Xiao|female|女/i.test(x.name))
+      || speechSynthesis.getVoices().find((x) => /zh/i.test(x.lang));
+    if (v) u.voice = v;
+    u.onstart = () => { lips.startText(text); fireAt(0); };
+    u.onboundary = (e) => { lips.setCharIndex(e.charIndex); fireAt(e.charIndex); };
+    u.onend = done;
+    u.onerror = () => silent();
+    speechSynthesis.speak(u);
+  } else {
+    silent();
+  }
+
+  function silent() {
+    // 没有声音也按文字节奏动嘴、做动作
+    lips.startText(text);
+    const rate = lips.textRate;
+    for (const b of plan.beats) setTimeout(() => state.speaking === token && fireAt(b.start), (b.start / rate) * 1000);
+    setTimeout(done, (text.length / rate) * 1000 + 300);
+  }
+}
+
+function stopSpeaking() {
+  state.speaking = null;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  lips.stop();
+}
+
+function setConversationState(s) {
+  // 听 / 想 / 说 / 待机：ESP32 状态接口直接映射
+  if (s === 'listening') { avatar.setEmotion('relaxed'); avatar.play('nod'); }
+  if (s === 'thinking') avatar.play('think');
+  if (s === 'idle') avatar.setEmotion('neutral');
+  $('#status').textContent = { listening: '在听…', thinking: '在想…', speaking: '在说…', idle: '' }[s] ?? '';
+}
+
+// ---------- 桥接（ESP32 → 状态接口 → 这里） ----------
+function handleMessage(m) {
+  switch (m.type) {
+    case 'say': return say(m.text, m);
+    case 'state': return setConversationState(m.state);
+    case 'scene': return switchScene(m.scene);
+    case 'weather': return setWeather(m);
+    case 'level': return lips.pushLevel(m.v);
+    case 'gesture': return avatar.play(m.name);
+    case 'emotion': return avatar.setEmotion(m.emotion);
+    case 'outfit': return dressAuto({ announce: !!m.announce });
+    default: return null;
+  }
+}
+window.xiaoyou = { say, handleMessage, avatar, scenes, state, camera, layout };
+
+// ---------- 控制面板 ----------
+function syncUI() {
+  for (const b of document.querySelectorAll('[data-scene]')) b.classList.toggle('on', b.dataset.scene === state.scene);
+  for (const b of document.querySelectorAll('[data-weather]')) b.classList.toggle('on', b.dataset.weather === state.weather.condition);
+  $('#temp').value = state.weather.temp;
+  $('#tempLabel').textContent = `${state.weather.temp}°C`;
+  $('#night').checked = !!state.weather.night;
+}
+
+function buildUI() {
+  $('#scenes').innerHTML = Object.entries(SCENE_LABELS).map(([k, v]) => `<button data-scene="${k}">${v}</button>`).join('');
+  $('#weathers').innerHTML = Object.entries(WEATHER_LABELS).map(([k, v]) => `<button data-weather="${k}">${v}</button>`).join('');
+  $('#gestures').innerHTML = Object.entries(GESTURE_LABELS).map(([k, v]) => `<button data-gesture="${k}">${v}</button>`).join('');
+  $('#slot').innerHTML = Object.entries(SLOTS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    lips.ensureCtx();
+    if (t.dataset.scene) switchScene(t.dataset.scene);
+    if (t.dataset.weather) setWeather({ condition: t.dataset.weather });
+    if (t.dataset.gesture) avatar.play(t.dataset.gesture);
+    if (t.dataset.sample) { $('#text').value = t.dataset.sample; say(t.dataset.sample); }
+    if (t.dataset.wear) wearManually(state.items.find((i) => i.id === t.dataset.wear));
+    if (t.dataset.del) removeItem(t.dataset.del);
+  });
+  $('#sayBtn').onclick = () => say($('#text').value.trim());
+  $('#text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) say($('#text').value.trim()); });
+  $('#voice').checked = state.voice;
+  $('#voice').onchange = (e) => { state.voice = e.target.checked; };
+  $('#temp').oninput = (e) => { $('#tempLabel').textContent = `${e.target.value}°C`; };
+  $('#temp').onchange = (e) => setWeather({ temp: Number(e.target.value) });
+  $('#night').onchange = (e) => setWeather({ night: e.target.checked });
+  $('#autoDress').onclick = () => dressAuto({ announce: true });
+  $('#liveWeather').onclick = liveWeather;
+  $('#audioFile').onchange = (e) => {
+    const f = e.target.files[0];
+    if (f) say($('#text').value.trim() || '（音频）', { audioUrl: URL.createObjectURL(f) });
+  };
+  $('#vrmFile').onchange = async (e) => {
+    const f = e.target.files[0];
+    if (f) await loadModel(URL.createObjectURL(f));
+  };
+  $('#upload').onsubmit = uploadItem;
+  $('#togglePanel').onclick = () => { document.body.classList.toggle('panel-hidden'); layout(); };
+  window.addEventListener('keydown', (e) => { if (e.key === 'h' && e.target === document.body) { document.body.classList.toggle('panel-hidden'); layout(); } });
+  if (params.has('kiosk')) document.body.classList.add('panel-hidden');
+}
+
+async function liveWeather() {
+  const btn = $('#liveWeather');
+  btn.textContent = '获取中…';
+  try {
+    const pos = await new Promise((res) => navigator.geolocation
+      ? navigator.geolocation.getCurrentPosition((p) => res(p.coords), () => res(null), { timeout: 5000 })
+      : res(null));
+    const w = await fetchWeather(pos?.latitude ?? 31.23, pos?.longitude ?? 121.47);
+    setWeather(w);
+    btn.textContent = `实时：${WEATHER_LABELS[w.condition]} ${w.temp}°C`;
+  } catch {
+    btn.textContent = '获取失败，点我重试';
+  }
+}
+
+async function uploadItem(e) {
+  e.preventDefault();
+  const f = $('#clothFile').files[0];
+  if (!f) return;
+  const image = await compressImage(f);
+  const color = await dominantColor(image);
+  const item = newItemFromUpload({
+    name: $('#clothName').value.trim(),
+    slot: $('#slot').value,
+    warmth: Number($('#warmth').value),
+    formal: Number($('#formal').value),
+    image, color,
+  });
+  await saveItem(item);
+  state.items = await loadItems();
+  e.target.reset();
+  await wearManually(item);
+  say(`谢谢！这件${item.name}我收进衣橱啦，先穿上给你看看。`);
+}
+
+async function removeItem(id) {
+  const item = state.items.find((i) => i.id === id);
+  if (!item) return;
+  await deleteItem(item);
+  state.items = await loadItems();
+  await dressAuto();
+}
+
+function renderWardrobe() {
+  const worn = new Set(Object.values(state.outfit?.items ?? {}).map((i) => i.id));
+  const groups = Object.entries(SLOTS).map(([slot, label]) => {
+    const list = state.items.filter((i) => i.slot === slot);
+    if (!list.length) return '';
+    return `<div class="slot"><h4>${label}</h4><div class="items">${list.map((i) => `
+      <div class="item ${worn.has(i.id) ? 'worn' : ''}">
+        <button class="swatch" data-wear="${i.id}" title="穿上 / 脱下"
+          style="background:${i.image ? `url(${i.image}) center/cover` : i.color}"></button>
+        <span>${i.name}</span>
+        ${i.builtin ? '' : `<button class="del" data-del="${i.id}" title="删除">×</button>`}
+      </div>`).join('')}</div></div>`;
+  });
+  $('#wardrobe').innerHTML = groups.join('');
+  $('#outfitSay').textContent = state.outfit?.say ?? '';
+}
+
+function logPlan(plan) {
+  const g = plan.beats.map((b) => `「${b.text.trim()}」→ ${b.gesture ? GESTURE_LABELS[b.gesture] : '—'}`).join('\n');
+  $('#plan').textContent = `场景：${plan.scene ? SCENE_LABELS[plan.scene] : '不变'}　天气：${plan.weather ? WEATHER_LABELS[plan.weather] : '不变'}　表情：${plan.emotion}\n${g}`;
+}
+
+async function loadModel(url) {
+  $('#loading').classList.add('on');
+  await avatar.load(url);
+  dresser.originals.clear();
+  const head = avatar.bone('head');
+  if (head) {
+    avatar.vrm.scene.updateMatrixWorld(true);
+    frame.headY = head.getWorldPosition(new THREE.Vector3()).y;
+    avatar.lookTarget.position.set(0, frame.headY, 3);
+  }
+  layout();
+  await dressAuto();
+  $('#loading').classList.remove('on');
+}
+
+// ---------- 主循环 ----------
+const clock = new THREE.Clock();
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  avatar.mouth = lips.update(dt);
+  avatar.update(dt);
+  dresser.update();
+  scenes.update(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+(async function init() {
+  buildUI();
+  scenes.weather = state.weather;
+  scenes.set(state.scene);
+  layout();
+  syncUI();
+  state.items = await loadItems();
+  tick();
+  await loadModel(params.get('model') || './models/sample.vrm');
+  connectBridge(params.get('bridge') || `ws://${location.hostname || 'localhost'}:8765`, handleMessage, (ok) => {
+    $('#bridge').textContent = ok ? 'ESP32 桥接：已连接' : 'ESP32 桥接：未连接';
+    $('#bridge').classList.toggle('ok', ok);
+  });
+  if (params.get('say')) say(params.get('say'));
+  if (params.get('gesture')) avatar.play(params.get('gesture'));
+  window.__ready = true;
+})();
