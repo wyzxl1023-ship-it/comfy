@@ -138,6 +138,8 @@ export const GESTURES = {
 export const GESTURE_LABELS = {
   wave: '挥手', nod: '点头', shake: '摇头', think: '思考', point: '指向',
   shrug: '摊手', bow: '鞠躬', cheer: '欢呼', heart: '捂心', shy: '害羞', sad: '低落', talk: '说话手势',
+  hug: '要抱抱', kiss: '飞吻', chin: '托腮', cry: '哭唧唧', angry: '哼', eat: '吃东西', cute: '撒娇',
+  drink: '喝奶茶', laugh: '大笑', wink: '眨眼', yawn: '打哈欠', surprised: '惊讶', coverEars: '捂耳朵', leaveBack: '假装要走',
 };
 
 // 采样某个动作在 t 秒时的姿势

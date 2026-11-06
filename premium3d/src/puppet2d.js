@@ -18,11 +18,12 @@ const LAYERS = [
   { id: 'armL', group: 'armL', sprites: { default: 'arm_l.png' } },
   { id: 'armR', group: 'armR', sprites: { default: 'arm_r.png', wave: 'arm_r_wave.png' } },
   { id: 'head', group: 'head', depth: 0.35, face: true, sprites: { default: 'head.png' } },
-  { id: 'eyes', group: 'head', depth: 0.75, sprites: { open: 'eyes_open.png', closed: 'eyes_closed.png', smile: 'eyes_smile.png', default: 'eyes_open.png' } },
+  { id: 'eyes', group: 'head', depth: 0.75, sprites: { open: 'eyes_open.png', closed: 'eyes_closed.png', smile: 'eyes_smile.png', wink: 'eyes_wink.png', default: 'eyes_open.png' } },
   { id: 'brows', group: 'head', depth: 0.8, sprites: { default: 'brows.png' } },
   { id: 'mouth', group: 'head', depth: 0.65, sprites: { closed: 'mouth_closed.png', half: 'mouth_half.png', open: 'mouth_open.png', smile: 'mouth_smile.png', default: 'mouth_closed.png' } },
   // 脸红：有 blush.png 就用画好的；没有就按 points.json 的 eyes/mouth（或 cheeks）程序化画两团粉色
   { id: 'blush', group: 'head', depth: 0.7, procedural: 'blush', fade: true, sprites: { default: 'blush.png' } },
+  { id: 'tears', group: 'head', depth: 0.72, procedural: 'tears', fade: true, sprites: { default: 'tears.png' } },
   { id: 'hairFront', group: 'head', depth: 1.0, hair: true, sprites: { default: 'hair_front.png' } },
 ];
 
@@ -41,7 +42,47 @@ export const PUPPET_GESTURES = {
   sad: { duration: 2.6, down: 1, armR: -0.04, armL: -0.04 },
   shy: { duration: 2.8, blush: 1, tilt: 0.08, turn: -0.35, nod0: 0.35, eyes: 'smile', armR: -0.06, armL: -0.06 },
   talk: { duration: 1.8, armR: 0.14, armROsc: [0.05, 0.9], turn: 0.15 },
+  // ---- 11-07 从聊天记录补的动作。值可以是函数 (u 0..1 进度, gt 秒) → 数值，用来做分段动作 ----
+  hug: { duration: 2.6, armR: 0.36, armL: 0.36, elbowR: 0.55, elbowL: 0.55, tilt: 0.06, bounce: 0.4, eyes: 'smile', blush: 0.35 },
+  kiss: {
+    duration: 2.4, blush: 0.5, tilt: 0.07,
+    armR: (u) => (u < 0.45 ? 0.1 : 0.1 + 0.32 * smooth((u - 0.45) / 0.3)),
+    elbowR: (u) => (u < 0.45 ? -2.5 : -2.5 + 3.1 * smooth((u - 0.45) / 0.3)),
+    eyes: (u) => (u < 0.45 ? 'closed' : 'smile'),
+    mouth: (u) => (u < 0.45 ? 'closed' : 'smile'),
+  },
+  chin: { duration: 3.2, armR: 0.08, elbowR: -2.6, tilt: -0.11, turn: 0.2, eyes: 'smile' },
+  cry: { duration: 3.0, tears: 1, eyes: 'closed', mouth: 'half', down: 1, sob: 1, armR: 0.06, armL: 0.06, elbowR: -2.4, elbowL: -2.4 },
+  angry: { duration: 2.2, turn: -0.7, lookUp: 0.6, tilt: -0.05, eyes: 'closed', mouth: 'closed', armR: 0.1, armL: 0.1, hop: 1 },
+  eat: { duration: 2.8, armR: 0.08, elbowR: -2.4, elbowROsc: [0.22, 1.4], eyes: 'smile', mouth: (u, gt) => (Math.sin(gt * 9) > 0 ? 'half' : 'closed') },
+  cute: { duration: 2.6, tiltOsc: [0.11, 1.5], bounce: 0.35, eyes: 'smile', blush: 0.4, mouth: 'smile' },
+  drink: { duration: 2.8, armR: 0.08, elbowR: -2.55, lookUp: (u) => 0.45 * Math.sin(Math.PI * u), eyes: (u) => (u > 0.3 && u < 0.75 ? 'closed' : 'smile') },
+  laugh: { duration: 2.2, lookUp: 0.8, bounce: 0.8, eyes: 'smile', mouth: 'open', armR: 0.05, armL: 0.05 },
+  wink: { duration: 1.8, eyes: 'wink', tilt: 0.1, turn: 0.2, mouth: 'smile' },
+  yawn: {
+    duration: 3.2, eyes: 'closed', lookUp: 0.45, tilt: 0.05,
+    mouth: (u) => (u > 0.15 && u < 0.7 ? 'open' : 'closed'),
+    armR: (u) => 0.28 * Math.sin(Math.PI * u), armL: (u) => 0.28 * Math.sin(Math.PI * u),
+    elbowR: (u) => 1.9 * Math.sin(Math.PI * u), elbowL: (u) => 1.9 * Math.sin(Math.PI * u),
+  },
+  surprised: { duration: 1.6, lookUp: 0.35, eyes: 'open', mouth: 'open', armR: 0.12, armL: 0.12, shoulders: 1, hop: 1 },
+  coverEars: { duration: 2.4, armR: 0.3, armL: 0.3, elbowR: 2.95, elbowL: 2.95, eyes: 'closed', shake: 0.35 },
+  leaveBack: {
+    duration: 3.2,
+    turn: (u) => (u < 0.55 ? -0.85 : -0.85 + 1.15 * smooth((u - 0.55) / 0.2)),
+    shiftX: (u) => -0.05 * Math.sin(Math.PI * Math.min(1, u / 0.85)),
+    eyes: (u) => (u < 0.55 ? 'closed' : 'smile'),
+    mouth: (u) => (u < 0.55 ? 'closed' : 'smile'),
+  },
 };
+
+// 某个动作在进度 u 时的参数（函数值展开成数值）
+export function resolveGesture(G, gt) {
+  const u = Math.min(Math.max(gt / G.duration, 0), 1);
+  const g = {};
+  for (const [k, v] of Object.entries(G)) g[k] = typeof v === 'function' ? v(u, gt) : v;
+  return g;
+}
 
 const smooth = (x) => { x = Math.min(Math.max(x, 0), 1); return x * x * (3 - 2 * x); };
 const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
@@ -98,6 +139,35 @@ function blushCanvas(W, H, p) {
   const box = cheeks.reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [W, H, 0, 0]);
   const R = r * s * 1.5 + 8;
   return { canvas: c, box: [Math.max(0, box[0] - R), Math.max(0, box[1] - R), Math.min(W, box[2] + R), Math.min(H, box[3] + R)] };
+}
+
+// 两道泪痕：从眼睛下方往下流的浅蓝色细条
+function tearsCanvas(W, H, p) {
+  const s = 4;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(W / s); c.height = Math.ceil(H / s);
+  const g = c.getContext('2d');
+  const eyes = p.eyes ?? [W / 2, H * 0.12];
+  const mouth = p.mouth ?? [eyes[0], eyes[1] + H * 0.03];
+  const d = Math.max(H * 0.012, mouth[1] - eyes[1]);
+  const pts = p.tearStart ?? [[eyes[0] - d * 0.62, eyes[1] + d * 0.18], [eyes[0] + d * 0.62, eyes[1] + d * 0.18]];
+  const len = d * 0.75; const wd = Math.max(2, d * 0.07);
+  for (const [x, y] of pts) {
+    const grd = g.createLinearGradient(0, y / s, 0, (y + len) / s);
+    grd.addColorStop(0, 'rgba(150,200,240,0.85)');
+    grd.addColorStop(1, 'rgba(150,200,240,0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.ellipse(x / s, (y + len / 2) / s, wd / s, len / 2 / s, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = 'rgba(190,225,250,0.9)';
+    g.beginPath();
+    g.arc(x / s, (y + len * 0.8) / s, (wd * 1.4) / s, 0, Math.PI * 2);
+    g.fill();
+  }
+  const R = d;
+  const xs = pts.map((q) => q[0]); const ys = pts.map((q) => q[1]);
+  return { canvas: c, box: [Math.max(0, Math.min(...xs) - R), Math.max(0, Math.min(...ys) - R * 0.3), Math.min(W, Math.max(...xs) + R), Math.min(H, Math.max(...ys) + len + R * 0.3)] };
 }
 
 function shadowTexture() {
@@ -160,8 +230,8 @@ export class Puppet2D {
         const b = alphaBox(img);
         if (b) box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b;
       }
-      if (!Object.keys(tex).length && def.procedural === 'blush') {
-        const b = blushCanvas(W, H, p);
+      if (!Object.keys(tex).length && def.procedural) {
+        const b = (def.procedural === 'tears' ? tearsCanvas : blushCanvas)(W, H, p);
         const t = new THREE.CanvasTexture(b.canvas);
         t.colorSpace = THREE.SRGBColorSpace;
         tex.default = t;
@@ -177,6 +247,7 @@ export class Puppet2D {
     sh.position.set(0, 0.005, -0.02);
     sh.renderOrder = 5;
     this.root.add(sh);
+    this.shadow = sh;
     this.update(0);
     return this;
   }
@@ -245,19 +316,23 @@ export class Puppet2D {
       this.active.t += dt;
       gt = this.active.t;
       if (gt >= G.duration) this.active = null;
-      else { g = G; w = smooth(Math.min(gt / 0.35, (G.duration - gt) / 0.45)); }
+      else { g = resolveGesture(G, gt); w = smooth(Math.min(gt / 0.35, (G.duration - gt) / 0.45)); }
     }
     // ---------- 姿态参数（像素/弧度） ----------
     const breath = Math.sin(t * 1.55) * 0.5 + 0.5;
-    const breathPx = breath * H * 0.0022 + (g.shoulders ? w * H * 0.012 * Math.max(0, Math.sin(gt * 4)) : 0);
+    let breathPx = breath * H * 0.0022 + (g.shoulders ? w * H * 0.012 * Math.max(0, Math.sin(gt * 4)) : 0);
+    if (g.sob) breathPx += w * H * 0.005 * Math.max(0, Math.sin(gt * 13)); // 抽泣：肩膀快速一抽一抽
     const bodyRot = 0.004 * Math.sin(t * 0.5) + 0.002 * Math.sin(t * 0.83);
-    const bounce = g.bounce ? Math.abs(Math.sin(gt * 7.5)) * H * 0.012 * w : 0;
+    let bounce = g.bounce ? Math.abs(Math.sin(gt * 7.5)) * H * 0.012 * g.bounce * w : 0;
+    if (g.hop) bounce += Math.max(0, Math.sin(Math.min(gt, 0.4) * Math.PI / 0.4)) * H * 0.01 * g.hop; // 开头轻轻一跳
+    const shiftX = (g.shiftX ?? 0) * H * w;
     // 头：歪（绕脖子转）、假转头（分层视差）、点头
     let tilt = 0.022 * Math.sin(t * 0.43) + 0.009 * Math.sin(t * 0.97) + (g.tilt ?? 0) * w;
+    if (g.tiltOsc) tilt += Math.sin(gt * Math.PI * 2 * g.tiltOsc[1]) * g.tiltOsc[0] * w;
     if (this.emotion === 'happy') tilt += 0.03;
     let turn = 0.18 * Math.sin(t * 0.31) + (g.turn ?? 0) * w;
-    if (g.shake) turn += Math.sin(gt * 11) * 0.7 * w;
-    let nod = (g.lookUp ? -0.5 * w : 0);
+    if (g.shake) turn += Math.sin(gt * 11) * 0.7 * g.shake * w;
+    let nod = (g.lookUp ? -0.5 * g.lookUp * w : 0);
     if (g.nod) nod += Math.max(0, Math.sin(gt * 7)) * w; // 点两下
     if (g.bow) nod += 1.6 * w;
     if (g.nod0) nod += g.nod0 * w;
@@ -303,14 +378,21 @@ export class Puppet2D {
     this.blinkTimer -= dt;
     if (this.blinkTimer <= 0 && this.blinkT < 0) { this.blinkT = 0; this.blinkTimer = 2.2 + Math.random() * 3.5; }
     let eyeName = (w > 0.5 && g.eyes) || ({ happy: 'smile', relaxed: 'smile' }[this.emotion] ?? 'open');
+    if (eyeName === 'wink' && !this.byId.eyes?.tex.wink) eyeName = 'smile'; // 还没画单眼眨的图就先笑眯眼
+    if (this.blinkT >= 0 && w > 0.5 && g.eyes) this.blinkT = -1; // 做动作时不眨眼，免得打断表情
     if (this.blinkT >= 0) { this.blinkT += dt; if (this.blinkT < 0.13) eyeName = 'closed'; else this.blinkT = -1; }
     this.setSprite('eyes', eyeName);
     const m = this.mouth;
-    this.setSprite('mouth', m > 0.45 ? 'open' : m > 0.12 ? 'half' : (this.emotion === 'happy' ? 'smile' : 'closed'));
+    let mouthName = m > 0.45 ? 'open' : m > 0.12 ? 'half' : (this.emotion === 'happy' ? 'smile' : 'closed');
+    if (g.mouth && w > 0.4 && m < 0.12) mouthName = g.mouth; // 说话时以口型为准
+    this.setSprite('mouth', mouthName);
     // 脸红：害羞动作时淡入，情绪是 shy 时一直微红
     const blush = Math.max((g.blush ?? 0) * w, this.emotion === 'shy' ? 0.7 : 0);
     const B = this.byId.blush;
     if (B) { B.mat.opacity = blush; B.mesh.visible = blush > 0.01; }
+    const tears = (g.tears ?? 0) * w;
+    const T = this.byId.tears;
+    if (T) { T.mat.opacity = tears; T.mesh.visible = tears > 0.01; }
     const waving = g.spriteR === 'wave' && w > 0.4 && this.byId.armR?.tex.wave;
     this.setSprite('armR', waving ? 'wave' : 'default');
 
@@ -375,12 +457,14 @@ export class Puppet2D {
         // 3) 全身轻微摆动 + 跳
         [x, y] = rot(x, y, feet[0], feet[1], bodyRot);
         y -= bounce;
+        x += shiftX;
         pos[k * 3] = (x - feet[0]) * this.unit;
         pos[k * 3 + 1] = (feet[1] - y) * this.unit;
         pos[k * 3 + 2] = 0;
       }
       L.mesh.geometry.attributes.position.needsUpdate = true;
     }
+    if (this.shadow) this.shadow.position.x = shiftX * this.unit;
   }
 
   dispose() {
