@@ -21,7 +21,12 @@ const BRIDGE_PORT = 8765;
 
 function loadConfig() {
   const def = { assetsDir: DEFAULT_ASSETS, kiosk: true, openAtLogin: true, displayId: null, query: '' };
-  try { return { ...def, ...JSON.parse(fs.readFileSync(CONFIG, 'utf8')) }; } catch { return def; }
+  try {
+    const saved = JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
+    // 旧版本存下的外接盘默认路径：本机已有素材时改用本机（用户在菜单里手动选的路径不动）
+    if (!saved.assetsDirChosen && saved.assetsDir !== DEFAULT_ASSETS) delete saved.assetsDir;
+    return { ...def, ...saved };
+  } catch { return def; }
 }
 function saveConfig() {
   fs.mkdirSync(path.dirname(CONFIG), { recursive: true });
@@ -130,6 +135,7 @@ async function chooseAssets() {
   const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], defaultPath: config.assetsDir });
   if (r.canceled || !r.filePaths[0]) return;
   config.assetsDir = r.filePaths[0];
+  config.assetsDirChosen = true;
   saveConfig();
   ensureAssetDirs();
   win?.webContents.reload();
