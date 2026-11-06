@@ -48,6 +48,13 @@ export class Dresser {
         m.needsUpdate = true;
       }
     }
+    if (look.irisScale) {
+      // 虹膜缩小一点、颜色深一点，更接近手绘动画里的眼睛
+      for (const n of ['leftEye', 'rightEye']) this.avatar.vrm?.humanoid?.getRawBoneNode(n)?.scale.set(look.irisScale, look.irisScale, 1);
+    }
+    if (look.irisColor) {
+      for (const m of this.materialsFor('EyeIris')) { m.color?.set(look.irisColor); m.needsUpdate = true; }
+    }
     this.mole?.parent?.remove(this.mole);
     this.mole = null;
     if (look.mole) {

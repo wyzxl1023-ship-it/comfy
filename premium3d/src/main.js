@@ -9,10 +9,15 @@ import { chooseOutfit, SLOTS, newItemFromUpload } from './wardrobe.js';
 import { loadItems, saveItem, deleteItem, recentWorn, recordWorn } from './store.js';
 import { fetchWeather } from './weather.js';
 import { connectBridge } from './bridge-client.js';
+import { PaintedRenderer, paintCharacter } from './style.js';
 
 const params = new URLSearchParams(location.search);
 // 形象参考：黑色长直发、左脸泪痣（坐标是相对头骨的位置，换模型时要重新对）
-const LOOK = params.has('rawlook') ? {} : { hairColor: '#2b2321', mole: [0.027, 0.034, 0.0918] };
+const STYLE = params.get('style') || 'painted'; // painted = 手绘温暖风，plain = 原始渲染
+const LOOK = params.has('rawlook') ? {} : {
+  hairColor: '#2b2321', mole: [0.027, 0.034, 0.0918],
+  ...(STYLE === 'painted' ? { irisScale: 0.74, irisColor: '#7a5a48' } : {}),
+};
 const $ = (s) => document.querySelector(s);
 
 // ---------- 渲染器（自适应任意尺寸屏幕） ----------
@@ -22,12 +27,13 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, Number(params.get('dpr'
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMapping = (new URLSearchParams(location.search).get('style') || 'painted') === 'painted' ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-const scenes = new SceneManager(scene);
+const scenes = new SceneManager(scene, { painted: STYLE === 'painted' });
+const painted = STYLE === 'painted' ? new PaintedRenderer(renderer, scene, camera) : null;
 const avatar = new Avatar(scene);
 const dresser = new Dresser(avatar);
 const lips = new LipSync();
@@ -38,6 +44,7 @@ function layout() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
+  painted?.setSize(w, h);
   camera.aspect = w / h;
   const portrait = Math.min(Math.max((1.2 - camera.aspect) / 0.7, 0), 1); // 1=竖屏 0=横屏
   const top = frame.headY + 0.32;
@@ -337,6 +344,7 @@ async function loadModel(url) {
     avatar.lookTarget.position.set(0, frame.headY, 3);
   }
   layout();
+  if (STYLE === 'painted') paintCharacter(avatar.materials);
   dresser.applyLook(LOOK);
   await dressAuto();
   $('#loading').classList.remove('on');
@@ -371,7 +379,8 @@ function tick() {
   avatar.update(dt);
   dresser.update();
   scenes.update(dt);
-  renderer.render(scene, camera);
+  if (painted) painted.render(dt);
+  else renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 

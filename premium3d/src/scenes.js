@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { paintMaterials, cloudSky } from './style.js';
 
 // 程序化生成的场景（全部用基础几何体 + Canvas 贴图，不依赖外部素材，无版权问题）。
 // 以后可替换为 Blender 做的 glTF 场景或 HDRI 全景图：只要实现同样的 build(ctx) 即可。
@@ -7,7 +8,7 @@ export const SCENE_LABELS = { home: '在家', busStop: '公交车站', office: '
 export const WEATHER_LABELS = { sunny: '晴', cloudy: '多云', rain: '下雨', snow: '下雪' };
 
 const SKY = {
-  sunny: { top: '#5fa8ff', bottom: '#cfe8ff', sun: 2.6, hemi: 1.1, fog: '#cfe3f5' },
+  sunny: { top: '#3f8fe0', bottom: '#cde9fb', sun: 2.6, hemi: 1.1, fog: '#cfe3f5' },
   cloudy: { top: '#8b97a6', bottom: '#d3d8de', sun: 1.2, hemi: 1.0, fog: '#c9ced4' },
   rain: { top: '#4b5560', bottom: '#8d969e', sun: 0.6, hemi: 0.8, fog: '#7f8890' },
   snow: { top: '#a9b6c4', bottom: '#eef2f6', sun: 1.0, hemi: 1.15, fog: '#e4e9ee' },
@@ -188,8 +189,8 @@ const BUILDERS = {
 
   busStop() {
     const g = new THREE.Group();
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), mat('#9a9a96'));
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; g.add(ground);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 6), mat('#c9c2b4'));
+    ground.rotation.x = -Math.PI / 2; ground.position.z = 0; ground.receiveShadow = true; g.add(ground);
     // 马路 + 车道线
     const road = new THREE.Mesh(new THREE.PlaneGeometry(30, 3.2), mat('#3d3f44', { roughness: 0.95 }));
     road.rotation.x = -Math.PI / 2; road.position.set(0, 0.003, 2.4); road.receiveShadow = true; g.add(road);
@@ -210,7 +211,7 @@ const BUILDERS = {
       c.fillStyle = gr; c.fillRect(0, 0, w, h);
       c.fillStyle = '#d45d79'; c.font = 'bold 54px sans-serif'; c.textAlign = 'center'; c.fillText('今日好心情', w / 2, h * 0.3);
       c.fillStyle = '#ffffff'; c.beginPath(); c.arc(w / 2, h * 0.62, 70, 0, 7); c.fill();
-    }), emissive: '#ffffff', emissiveIntensity: 0.25 }), 0.6, 1.35, -1.9));
+    }), emissive: '#ffffff', emissiveIntensity: 0.25 }), 2.6, 1.35, -1.9));
     // 长椅
     const wood = mat('#a8774f');
     g.add(box(1.8, 0.06, 0.4, wood, -1.5, 0.48, -1.35));
@@ -218,21 +219,48 @@ const BUILDERS = {
     // 站牌
     g.add(cyl(0.04, 0.04, 2.8, steel, 1.9, 1.4, -0.6));
     g.add(box(0.9, 0.45, 0.04, mat('#ffffff', { map: signTex('公交站', '#1f7a4d', '#ffffff', '小柚路 · 18 / 26 路') }), 1.9, 2.55, -0.6));
-    // 远处楼群
-    const colors = ['#b7c3cf', '#c9b8a6', '#a9b9ad', '#d2c7b8', '#9fb0c4'];
-    for (let i = 0; i < 9; i++) {
-      const h = 5 + ((i * 37) % 7);
-      const tex = windowGridTex(colors[i % colors.length], '#ffe9a8');
-      const b = box(2.4, h, 2, mat('#ffffff', { map: tex }), -10 + i * 2.6, h / 2, -8 - (i % 3));
-      b.castShadow = false; g.add(b);
+    // 远处：起伏的小山 + 小房子 + 大树（留出大片天空）
+    const hillColors = ['#7fae5a', '#94bf68', '#6d9e52'];
+    for (let i = 0; i < 5; i++) {
+      const hill = new THREE.Mesh(new THREE.SphereGeometry(6 + (i % 3) * 2, 24, 12), mat(hillColors[i % 3]));
+      hill.scale.set(1.6, 0.35 + (i % 2) * 0.12, 1);
+      hill.position.set(-18 + i * 9, -0.5, -22 - (i % 2) * 4);
+      hill.receiveShadow = true; g.add(hill);
     }
-    // 行道树
-    for (const x of [-4.5, 4.2]) {
-      g.add(cyl(0.1, 0.13, 1.8, mat('#6b4f36'), x, 0.9, -1.2));
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), mat('#5b9a52'));
-      crown.position.set(x, 2.3, -1.2); crown.castShadow = true; g.add(crown);
+    const walls = ['#f3e6cf', '#efd9c0', '#f6efe2', '#e9d3b4'];
+    const roofs = ['#c8553d', '#4f7cac', '#d98a3a', '#8a5a44'];
+    for (let i = 0; i < 6; i++) {
+      const x = -9 + i * 3.4 + ((i * 5) % 3) * 0.5;
+      const z = -9 - (i % 3) * 1.6;
+      const w = 2 + (i % 2) * 0.6; const h = 1.8 + (i % 3) * 0.5;
+      g.add(box(w, h, 2, mat(walls[i % 4]), x, h / 2, z));
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.85, 1.1, 4), mat(roofs[i % 4]));
+      roof.rotation.y = Math.PI / 4; roof.position.set(x, h + 0.55, z); roof.scale.set(1, 1, 0.8);
+      roof.castShadow = true; g.add(roof);
+      g.add(box(0.4, 0.5, 0.05, mat('#a7c7de'), x - w * 0.22, h * 0.6, z + 1.01));
+      g.add(box(0.4, 0.5, 0.05, mat('#a7c7de'), x + w * 0.22, h * 0.6, z + 1.01));
     }
-    return { group: g, outdoor: true, weatherArea: { x0: -6, x1: 6, z0: -6, z1: 3, h: 6 } };
+    const greens = ['#5b9a52', '#6aa85a', '#4e8a4a', '#7cb662'];
+    const tree = (x, z, s) => {
+      g.add(cyl(0.1 * s, 0.14 * s, 1.6 * s, mat('#7a5a3c'), x, 0.8 * s, z));
+      for (let i = 0; i < 6; i++) {
+        const c = new THREE.Mesh(new THREE.SphereGeometry((0.55 + (i % 3) * 0.15) * s, 14, 10), mat(greens[(i + Math.round(x)) & 3]));
+        c.position.set(x + Math.sin(i * 1.9) * 0.45 * s, (1.9 + (i % 3) * 0.35) * s, z + Math.cos(i * 1.9) * 0.35 * s);
+        c.castShadow = true; g.add(c);
+      }
+    };
+    tree(-4.6, -1.6, 1.25); tree(4.4, -2.2, 1.1); tree(-7.5, -5, 1.4); tree(7.2, -6, 1.5); tree(1.8, -12, 1.8); tree(-3, -13, 1.6);
+    // 草地（人行道后面）
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), mat('#8fbf6a'));
+    grass.rotation.x = -Math.PI / 2; grass.position.set(0, 0.002, -17.5); grass.receiveShadow = true; g.add(grass);
+    // 小花丛
+    const flowers = ['#f2c94c', '#f28b82', '#ffffff', '#c39bd3'];
+    for (let i = 0; i < 26; i++) {
+      const f = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(flowers[i % 4]));
+      f.position.set(-6 + (i * 0.47) % 12, 0.03, -3.4 - ((i * 7) % 5) * 0.4);
+      g.add(f);
+    }
+    return { group: g, outdoor: true, weatherArea: { x0: -6, x1: 6, z0: -6, z1: 3, h: 6 }, skyZ: -30 };
   },
 
   office() {
@@ -252,9 +280,9 @@ const BUILDERS = {
     for (const x of [-1.8, 1.8]) g.add(box(1.4, 0.03, 0.4, mat('#ffffff', { emissive: '#ffffff', emissiveIntensity: 1 }), x, 3.29, -0.6));
     const ceilLight = new THREE.PointLight('#ffffff', 4, 8, 1.4); ceilLight.position.set(0, 3.0, 0); g.add(ceilLight);
     // 窗外城市天际线（高层办公室：往下能看到别的楼）
-    const colors = ['#7d8fa3', '#95a3b3', '#6f8299', '#a4afbd'];
+    const colors = ['#d9c7a8', '#c9d3dc', '#e3d2bd', '#bfcdd6'];
     for (let i = 0; i < 14; i++) {
-      const h = 14 + ((i * 53) % 16);
+      const h = 10 + ((i * 53) % 10);
       const x = -16 + i * 2.5 + ((i * 7) % 3) * 0.4;
       const zz = -14 - (i % 4) * 4;
       const b = box(2.2, h, 2.2, mat('#ffffff', { map: windowGridTex(colors[i % 4], '#fff3c4', 5, 20) }), x, h / 2 - 14, zz);
@@ -297,8 +325,9 @@ const BUILDERS = {
 };
 
 export class SceneManager {
-  constructor(scene) {
+  constructor(scene, { painted = false } = {}) {
     this.scene = scene;
+    this.painted = painted;
     this.current = null;
     this.key = null;
     this.weather = { condition: 'sunny', temp: 22, night: false };
@@ -311,8 +340,8 @@ export class SceneManager {
     this.sun.shadow.bias = -0.0005;
     scene.add(this.hemi, this.sun);
     this.skyMat = new THREE.MeshBasicMaterial({ depthWrite: false, fog: false });
-    this.sky = new THREE.Mesh(new THREE.PlaneGeometry(80, 40), this.skyMat);
-    this.sky.position.set(0, 8, -25);
+    this.sky = new THREE.Mesh(new THREE.PlaneGeometry(120, 50), this.skyMat);
+    this.sky.position.set(0, 12, -25);
     scene.add(this.sky);
     this.particles = null;
   }
@@ -324,6 +353,7 @@ export class SceneManager {
       this.current.group.traverse((o) => { o.geometry?.dispose(); });
     }
     this.current = BUILDERS[key]();
+    if (this.painted) paintMaterials(this.current.group);
     this.key = key;
     this.scene.add(this.current.group);
     this.applyWeather();
@@ -340,12 +370,13 @@ export class SceneManager {
     const { condition, night } = this.weather;
     const s = night ? NIGHT : SKY[condition] ?? SKY.sunny;
     this.skyMat.map?.dispose();
-    this.skyMat.map = gradientTex(s.top, s.bottom);
+    this.skyMat.map = this.painted ? cloudSky(s.top, s.bottom, condition, night) : gradientTex(s.top, s.bottom);
     this.skyMat.needsUpdate = true;
     this.sky.position.z = this.current.skyZ ?? -25;
     this.scene.background = new THREE.Color(s.bottom);
     const outdoor = this.current.outdoor;
-    this.scene.fog = outdoor ? new THREE.Fog(s.fog, 8, condition === 'rain' || condition === 'snow' ? 18 : 30) : null;
+    const wet = condition === 'rain' || condition === 'snow';
+    this.scene.fog = outdoor ? (this.painted ? new THREE.Fog(s.fog, wet ? 10 : 25, wet ? 40 : 90) : new THREE.Fog(s.fog, 8, wet ? 18 : 30)) : null;
     this.sun.intensity = outdoor ? s.sun : 0.6 + s.sun * 0.35;
     this.hemi.intensity = outdoor ? s.hemi : 0.9 + s.hemi * 0.2;
     if (this.particles) { this.scene.remove(this.particles); this.particles.geometry.dispose(); this.particles = null; }
