@@ -11,6 +11,8 @@ import { fetchWeather } from './weather.js';
 import { connectBridge } from './bridge-client.js';
 
 const params = new URLSearchParams(location.search);
+// 形象参考：黑色长直发、左脸泪痣（坐标是相对头骨的位置，换模型时要重新对）
+const LOOK = params.has('rawlook') ? {} : { hairColor: '#2b2321', mole: [0.027, 0.034, 0.0918] };
 const $ = (s) => document.querySelector(s);
 
 // ---------- 渲染器（自适应任意尺寸屏幕） ----------
@@ -209,7 +211,7 @@ function handleMessage(m) {
     default: return null;
   }
 }
-window.xiaoyou = { say, handleMessage, avatar, scenes, state, camera, layout };
+window.xiaoyou = { say, handleMessage, avatar, scenes, state, camera, layout, dresser, THREE };
 
 // ---------- 控制面板 ----------
 function syncUI() {
@@ -335,6 +337,7 @@ async function loadModel(url) {
     avatar.lookTarget.position.set(0, frame.headY, 3);
   }
   layout();
+  dresser.applyLook(LOOK);
   await dressAuto();
   $('#loading').classList.remove('on');
 }

@@ -36,6 +36,30 @@ export class Dresser {
     return this.originals.get(m);
   }
 
+  // 形象（发色、泪痣等），和衣服分开管理
+  applyLook(look = {}) {
+    if (look.hairColor) {
+      for (const m of this.materialsFor('Hair')) {
+        const orig = this.remember(m);
+        m.map = orig.map ? this.neutralTexture(orig.map) : null;
+        m.color?.set(look.hairColor);
+        if (m.shadeColorFactor) m.shadeColorFactor.set(look.hairColor).multiplyScalar(0.6);
+        if (m.shadeMultiplyTexture !== undefined) m.shadeMultiplyTexture = m.map;
+        m.needsUpdate = true;
+      }
+    }
+    this.mole?.parent?.remove(this.mole);
+    this.mole = null;
+    if (look.mole) {
+      const [x, y, z] = look.mole;
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0016, 12), new THREE.MeshBasicMaterial({ color: '#3a2a26' }));
+      dot.position.set(x, y, z);
+      const head = this.avatar.bone('head');
+      head?.add(dot);
+      this.mole = dot;
+    }
+  }
+
   async apply(outfit) {
     const items = outfit.items ?? outfit;
     for (const [slot, prefix] of Object.entries(SLOT_MATERIAL)) {
