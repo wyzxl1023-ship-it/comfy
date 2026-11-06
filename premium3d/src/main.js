@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar.js';
+import { Puppet2D } from './puppet2d.js';
 import { SceneManager, SCENE_LABELS, WEATHER_LABELS } from './scenes.js';
 import { LipSync } from './lipsync.js';
 import { planUtterance } from './intent.js';
@@ -35,7 +36,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
 const scenes = new SceneManager(scene, { painted: STYLE === 'painted' });
 const painted = STYLE === 'painted' ? new PaintedRenderer(renderer, scene, camera) : null;
-const avatar = new Avatar(scene);
+const vrmAvatar = new Avatar(scene);
+let avatar = vrmAvatar;
 const backdrop = new Backdrop(scene, camera);
 const dresser = new Dresser(avatar);
 const lips = new LipSync();
@@ -118,10 +120,10 @@ function setWeather(w) {
 
 // ---------- 衣橱 ----------
 async function dressAuto({ announce = false } = {}) {
-  if (!avatar.vrm) return;
+  if (!avatar.vrm && !avatar.isPuppet) return;
   const outfit = chooseOutfit(state.items, state.weather, state.scene, { recent: recentWorn() });
   state.outfit = outfit;
-  await dresser.apply(outfit);
+  if (!avatar.isPuppet) await dresser.apply(outfit); // 2D 版换衣（局部重绘出的衣服图层）后续接入
   recordWorn(Object.values(outfit.items).map((i) => i.id));
   renderWardrobe();
   if (announce) say(outfit.say);
@@ -132,7 +134,7 @@ async function wearManually(item) {
   if (items[item.slot]?.id === item.id && !['top', 'bottom', 'shoes'].includes(item.slot)) delete items[item.slot];
   else items[item.slot] = item;
   state.outfit = { items, say: '' };
-  await dresser.apply(state.outfit);
+  if (!avatar.isPuppet) await dresser.apply(state.outfit);
   renderWardrobe();
 }
 
@@ -363,8 +365,29 @@ function logPlan(plan) {
   $('#plan').textContent = `场景：${plan.scene ? SCENE_LABELS[plan.scene] : '不变'}　天气：${plan.weather ? WEATHER_LABELS[plan.weather] : '不变'}　表情：${plan.emotion}\n${g}`;
 }
 
+// 2D 手绘小柚：character/ 文件夹里有 points.json 就用它（?character=路径 可指定，?model=xx.vrm 强制用 3D）
+async function loadPuppet(base) {
+  try {
+    const r = await fetch(`${base}/points.json`, { cache: 'no-store' });
+    if (!r.ok) return false;
+    await r.json();
+  } catch { return false; }
+  $('#loading').classList.add('on');
+  const puppet = new Puppet2D(scene);
+  await puppet.load(base);
+  if (avatar.isPuppet) avatar.dispose();
+  avatar = puppet;
+  window.xiaoyou.avatar = puppet;
+  frame.headY = puppet.headY;
+  layout();
+  await dressAuto();
+  $('#loading').classList.remove('on');
+  return true;
+}
+
 async function loadModel(url) {
   $('#loading').classList.add('on');
+  if (avatar.isPuppet) { avatar.dispose(); avatar = vrmAvatar; window.xiaoyou.avatar = vrmAvatar; }
   await avatar.load(url);
   dresser.originals.clear();
   const head = avatar.bone('head');
@@ -407,7 +430,7 @@ function tick() {
   }
   avatar.mouth = lips.update(dt);
   avatar.update(dt);
-  dresser.update();
+  if (!avatar.isPuppet) dresser.update();
   scenes.update(dt);
   if (painted) painted.render(dt);
   else renderer.render(scene, camera);
@@ -427,7 +450,8 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   try { for (const b of await loadBackgrounds()) backdrop.uploads.set(b.key, b.image); } catch { /* 浏览器不支持就跳过 */ }
   await refreshBackdrop();
   tick();
-  await loadModel(params.get('model') || './models/sample.vrm');
+  const usePuppet = !params.has('model') && await loadPuppet(params.get('character') || './character');
+  if (!usePuppet) await loadModel(params.get('model') || './models/sample.vrm');
   connectBridge(params.get('bridge') || `ws://${location.hostname || 'localhost'}:8765`, handleMessage, (ok) => {
     $('#bridge').textContent = ok ? 'ESP32 桥接：已连接' : 'ESP32 桥接：未连接';
     $('#bridge').classList.toggle('ok', ok);

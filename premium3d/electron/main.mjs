@@ -10,7 +10,7 @@ import { startBridge } from '../bridge/bridge.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.join(here, '..', 'dist');
 const CONFIG = path.join(app.getPath('userData'), 'config.json');
-const DEFAULT_ASSETS = '/Volumes/固态t800/小柚资产';
+const DEFAULT_ASSETS = '/Volumes/固态T800/小柚资产';
 const WEB_PORT = 5180;
 const BRIDGE_PORT = 8765;
 
