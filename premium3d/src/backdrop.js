@@ -16,6 +16,24 @@ export function candidates(scene, weather, { fallback = true } = {}) {
   return out;
 }
 
+// 没有完全对上天气/时间的图时，用这个场景里最接近的一张（比如面馆只画了雨夜和阴天夜，白天也先用它），
+// 总比退回程序化 3D 场景好：先看白天/夜晚对不对，再看天气对不对。
+export function closestFile(files, scene, weather) {
+  const { condition, night } = weather;
+  let best = null; let bestScore = -1;
+  for (const f of files) {
+    const name = f.replace(/\.(jpg|png|webp)$/, '');
+    if (name !== scene && !name.startsWith(`${scene}-`)) continue;
+    const parts = name.split('-').slice(1);
+    const isNight = parts.includes('night');
+    let score = 0;
+    if (isNight === !!night) score += 2;
+    if (parts.includes(condition)) score += 1;
+    if (score > bestScore || (score === bestScore && best && f < best)) { best = f; bestScore = score; }
+  }
+  return best;
+}
+
 export class Backdrop {
   constructor(scene, camera) {
     this.camera = camera;
@@ -53,7 +71,8 @@ export class Backdrop {
         if (this.files.has(`${key}.${ext}`)) return `./backgrounds/${key}.${ext}`;
       }
     }
-    return null;
+    const near = closestFile(this.files, sceneKey, weather);
+    return near ? `./backgrounds/${near}` : null;
   }
 
   // 返回 true 表示用了背景图

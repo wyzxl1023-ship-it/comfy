@@ -4,7 +4,18 @@ import { paintMaterials, cloudSky } from './style.js';
 // 程序化生成的场景（全部用基础几何体 + Canvas 贴图，不依赖外部素材，无版权问题）。
 // 以后可替换为 Blender 做的 glTF 场景或 HDRI 全景图：只要实现同样的 build(ctx) 即可。
 
-export const SCENE_LABELS = { home: '在家', bedroom: '卧室', busStop: '公交车站', office: '公司' };
+export const SCENE_LABELS = {
+  home: '在家', bedroom: '卧室', busStop: '公交车站', office: '公司', officeGate: '公司门口',
+  street: '街道', park: '公园', mall: '商场', convenience: '便利店', milkTea: '奶茶店',
+  noodleShop: '面馆', hotpot: '火锅店', cinema: '电影院', nightMarket: '夜市',
+  beach: '海边', sunMoonLake: '日月潭', alishan: '阿里山',
+};
+// 背景图是主角；这些场景还没有专门的程序化 3D 场景，没有背景图时借用相近的
+const BUILDER_LIKE = {
+  officeGate: 'busStop', street: 'busStop', park: 'busStop', nightMarket: 'busStop',
+  beach: 'busStop', sunMoonLake: 'busStop', alishan: 'busStop',
+  mall: 'office', convenience: 'office', milkTea: 'home', noodleShop: 'home', hotpot: 'home', cinema: 'home',
+};
 // 没有专属素材时借用的场景（背景图和程序化 3D 场景都按这个顺序找）
 export const SCENE_FALLBACK = { bedroom: 'home' };
 export const WEATHER_LABELS = { sunny: '晴', cloudy: '多云', rain: '下雨', snow: '下雪' };
@@ -350,12 +361,14 @@ export class SceneManager {
   }
 
   set(key) {
-    if (!BUILDERS[key] || key === this.key) return false;
+    if (key === this.key) return false;
+    const build = BUILDERS[key] ?? BUILDERS[BUILDER_LIKE[key]];
+    if (!build) return false;
     if (this.current) {
       this.scene.remove(this.current.group);
       this.current.group.traverse((o) => { o.geometry?.dispose(); });
     }
-    this.current = BUILDERS[key]();
+    this.current = build();
     if (this.painted) paintMaterials(this.current.group);
     this.key = key;
     this.scene.add(this.current.group);

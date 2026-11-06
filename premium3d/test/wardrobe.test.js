@@ -106,7 +106,7 @@ test('2D look: weather and scene pick a sensible outfit', () => {
 
 test('2D look: swimwear only at the beach', () => {
   assert.equal(scoreLook(LOOKS[4], { temp: 32, condition: 'sunny' }, 'home'), -Infinity);
-  assert.equal(chooseLook(LOOKS, { temp: 32, condition: 'sunny' }, 'sunMoonLake', fixed).id, 'swim');
+  assert.equal(chooseLook(LOOKS, { temp: 32, condition: 'sunny' }, 'beach', fixed).id, 'swim');
   assert.equal(chooseLook([], { temp: 20 }, 'home'), null);
 });
 

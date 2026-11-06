@@ -50,8 +50,8 @@ export function targetWarmth(temp) {
   return 3;
 }
 
-const OUTDOOR = new Set(['busStop']);
-const SCENE_FORMAL = { office: 2, busStop: 1, home: 0, bedroom: 0 };
+const OUTDOOR = new Set(['busStop', 'officeGate', 'street', 'park', 'nightMarket', 'beach', 'sunMoonLake', 'alishan']);
+const SCENE_FORMAL = { office: 2, officeGate: 2, busStop: 1, home: 0, bedroom: 0, beach: 0 };
 const AT_HOME = new Set(['home', 'bedroom']);
 
 // 什么天气需要哪些可选单品
@@ -177,7 +177,7 @@ export function hairFor(outfit, scene) {
 // 清单在 character/outfits/outfits.json：
 //   [{ id, name, warmth: 0..3, formal: 0..2, rain?: bool, beach?: bool, hair?: 发型名 }]
 // 按天气（冷暖、下雨）和场合（正式度、海边）挑一套，最近穿过的往后排。
-export const BEACH_SCENES = new Set(['beach', 'pool', 'sunMoonLake']);
+export const BEACH_SCENES = new Set(['beach', 'pool']);
 export function sceneFormal(scene) {
   return SCENE_FORMAL[scene] ?? (AT_HOME.has(scene) ? 0 : 1);
 }

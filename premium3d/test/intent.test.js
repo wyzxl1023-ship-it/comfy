@@ -77,3 +77,11 @@ test('卧室场景和害羞动作', () => {
   assert.equal(gestureForClause('哎呀你这样说我好害羞'), 'shy');
   assert.ok(GESTURES.shy);
 });
+
+test('new scenes are detected from what she says', () => {
+  assert.equal(detectScene('我们去看电影吧，买桶爆米花'), 'cinema');
+  assert.equal(detectScene('想喝奶茶，加珍珠'), 'milkTea');
+  assert.equal(detectScene('晚上去逛夜市'), 'nightMarket');
+  assert.equal(detectScene('周末去海边游泳'), 'beach');
+  assert.equal(detectScene('今天吃火锅'), 'hotpot');
+});

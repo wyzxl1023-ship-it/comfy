@@ -81,6 +81,9 @@ export const PUPPET_GESTURES = {
 };
 
 // 某个动作在进度 u 时的参数（函数值展开成数值）
+// 需要 arm_r_face.png 的动作 → 没有这张图时的替代动作
+export const FACE_GESTURE_FALLBACK = { chin: 'think', eat: 'nod', drink: 'nod', kiss: 'heart' };
+
 export function resolveGesture(G, gt) {
   const u = Math.min(Math.max(gt / G.duration, 0), 1);
   const g = {};
@@ -406,7 +409,11 @@ export class Puppet2D {
     return true;
   }
 
-  play(name) { if (PUPPET_GESTURES[name]) this.active = { name, t: 0 }; }
+  play(name) {
+    // 换了衣服后没有对应的「手到脸」手臂图，就换成不用抬手的动作，免得手臂折得很怪
+    if (FACE_GESTURE_FALLBACK[name] && !this.byId.armR?.tex.face) name = FACE_GESTURE_FALLBACK[name];
+    if (PUPPET_GESTURES[name]) this.active = { name, t: 0 };
+  }
   setEmotion(e) { this.emotion = e; }
   // 取景用：眼睛高度（米）
   get headY() { return (this.origin[1] - (this.p?.eyes?.[1] ?? this.H * 0.12)) * this.unit; }
