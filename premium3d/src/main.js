@@ -6,12 +6,13 @@ import { LipSync } from './lipsync.js';
 import { planUtterance } from './intent.js';
 import { GESTURE_LABELS } from './gestures.js';
 import { Dresser, dominantColor, compressImage } from './dress.js';
-import { chooseOutfit, SLOTS, newItemFromUpload, hairFor, chooseLook, hairForLook } from './wardrobe.js';
+import { chooseOutfit, SLOTS, newItemFromUpload, hairFor, chooseLook, hairForLook, HAIR_STYLES } from './wardrobe.js';
 import { loadItems, saveItem, deleteItem, recentWorn, recordWorn, loadBackgrounds, saveBackground, deleteBackground } from './store.js';
 import { Backdrop, candidates } from './backdrop.js';
 import { fetchWeather } from './weather.js';
 import { connectBridge } from './bridge-client.js';
 import { PaintedRenderer, paintCharacter } from './style.js';
+import { cycle, REMOTE_GESTURES } from './remote.js';
 
 const params = new URLSearchParams(location.search);
 // 形象参考：黑色长直发、左脸泪痣（坐标是相对头骨的位置，换模型时要重新对）
@@ -247,6 +248,55 @@ function handleMessage(m) {
     case 'outfit': return dressAuto({ announce: !!m.announce });
     case 'hair': return avatar.setHair?.(m.name);
     case 'look': return avatar.setOutfit?.(m.name);
+    case 'remote': return remoteAction(m.action);
+    default: return null;
+  }
+}
+
+// ---------- 摇杆遥控器 ----------
+let toastTimer;
+function toast(text) {
+  const el = $('#toast');
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 1800);
+}
+
+async function stepLook(step) {
+  if (!avatar.isPuppet || !state.looks.length) return dressAuto();
+  const look = cycle(state.looks, state.looks.find((l) => l.id === state.look?.id), step);
+  state.look = look;
+  toast(`换衣服：${look.name ?? look.id}`);
+  await avatar.setOutfit?.(look.id);
+  await avatar.setHair?.(hairForLook(look, state.scene));
+}
+
+function remoteAction(action) {
+  lips.ensureCtx();
+  switch (action) {
+    case 'nextLook': return stepLook(1);
+    case 'prevLook': return stepLook(-1);
+    case 'nextScene':
+    case 'prevScene': {
+      const key = cycle(Object.keys(SCENE_LABELS), state.scene, action === 'nextScene' ? 1 : -1);
+      toast(`换场景：${SCENE_LABELS[key]}`);
+      return switchScene(key);
+    }
+    case 'gesture': {
+      const g = cycle(REMOTE_GESTURES, state.remoteGesture);
+      state.remoteGesture = g;
+      toast(GESTURE_LABELS[g] ?? g);
+      return avatar.play(g);
+    }
+    case 'outfit': return dressAuto({ announce: true });
+    case 'hair': {
+      if (!avatar.setHair) return null;
+      const h = cycle(Object.keys(HAIR_STYLES), avatar.hairStyle ?? 'straight');
+      toast(`换发型：${HAIR_STYLES[h]}`);
+      return avatar.setHair?.(h);
+    }
+    case 'panel': document.body.classList.toggle('panel-hidden'); return layout();
     default: return null;
   }
 }
