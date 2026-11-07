@@ -1,6 +1,8 @@
 // 状态接口消息校验（桥接服务和测试共用）
 // heard = 用户对小柚说的话（只记日志，页面不处理）
-export const TYPES = ['say', 'heard', 'state', 'scene', 'weather', 'level', 'gesture', 'emotion', 'outfit', 'hair', 'look'];
+// remote = 摇杆遥控器的按键（Mac 应用收到全局快捷键后转成这条，见 electron/remote.mjs）
+export const TYPES = ['say', 'heard', 'state', 'scene', 'weather', 'level', 'gesture', 'emotion', 'outfit', 'hair', 'look', 'remote'];
+export const REMOTE_ACTIONS = ['nextLook', 'prevLook', 'prevScene', 'nextScene', 'gesture', 'outfit', 'hair', 'panel'];
 export const STATES = ['idle', 'listening', 'thinking', 'speaking'];
 
 export function validate(m) {
@@ -9,6 +11,7 @@ export function validate(m) {
   if ((m.type === 'say' || m.type === 'heard') && (typeof m.text !== 'string' || !m.text)) return `${m.type}.text required`;
   if (m.type === 'state' && !STATES.includes(m.state)) return `state must be one of ${STATES.join('/')}`;
   if (m.type === 'level' && (typeof m.v !== 'number' || m.v < 0 || m.v > 1)) return 'level.v must be 0..1';
+  if (m.type === 'remote' && !REMOTE_ACTIONS.includes(m.action)) return `remote.action must be one of ${REMOTE_ACTIONS.join('/')}`;
   if (m.type === 'weather' && m.temp !== undefined && typeof m.temp !== 'number') return 'weather.temp must be a number';
   return null;
 }

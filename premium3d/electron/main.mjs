@@ -1,11 +1,12 @@
 // 小柚 Mac 应用：本机静态服务 + ESP32 桥接 + 全屏窗口。
 // 资产文件夹（ComfyUI 出的背景、立绘部件、衣服）默认在 文稿/AI语音伴侣项目/小柚资产，没有就用外接盘；丢进去就能用，不用重新打包。
-import { app, BrowserWindow, Menu, dialog, screen, shell, powerSaveBlocker } from 'electron';
+import { app, BrowserWindow, Menu, dialog, screen, shell, powerSaveBlocker, globalShortcut } from 'electron';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startBridge } from '../bridge/bridge.mjs';
+import { registerRemote } from './remote.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.join(here, '..', 'dist');
@@ -170,9 +171,11 @@ app.whenReady().then(() => {
   applyLogin();
   startWeb();
   // 对话日志：文稿/AI语音伴侣项目/小柚聊天记录/YYYY-MM-DD.jsonl（只存本机）
-  startBridge({ port: BRIDGE_PORT, logDir: path.join(app.getPath('documents'), 'AI语音伴侣项目', '小柚聊天记录') });
+  const bridge = startBridge({ port: BRIDGE_PORT, logDir: path.join(app.getPath('documents'), 'AI语音伴侣项目', '小柚聊天记录') });
+  registerRemote((m) => bridge.broadcast(m)); // 摇杆遥控器（蓝牙键盘）→ 页面
   powerSaveBlocker.start('prevent-display-sleep'); // 展示时不黑屏
   buildMenu();
   createWindow();
 });
 app.on('window-all-closed', () => app.quit());
+app.on('will-quit', () => globalShortcut.unregisterAll());
